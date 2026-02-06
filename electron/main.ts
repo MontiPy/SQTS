@@ -56,13 +56,20 @@ if (!gotLock) {
   });
 
   app.whenReady().then(async () => {
-    // Initialize database
-    await getDatabase();
+    try {
+      // Initialize database
+      console.log('[SQTS] Initializing database...');
+      await getDatabase();
+      console.log('[SQTS] Database initialized successfully');
 
-    // Register all IPC handlers
-    registerHandlers();
+      // Register all IPC handlers
+      registerHandlers();
 
-    createWindow();
+      createWindow();
+      console.log('[SQTS] Window created');
+    } catch (error) {
+      console.error('[SQTS] STARTUP FAILED:', error);
+    }
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
