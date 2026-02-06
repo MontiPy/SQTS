@@ -12,6 +12,7 @@ import ProjectForm from './ProjectForm';
 import MilestoneEditor from './MilestoneEditor';
 import ProjectActivityManager from './ProjectActivityManager';
 import ApplyToSupplierDialog from './ApplyToSupplierDialog';
+import PropagationPreview from '@/components/PropagationPreview';
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +28,7 @@ export default function ProjectDetail() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMilestoneEditor, setShowMilestoneEditor] = useState(false);
   const [showApplyDialog, setShowApplyDialog] = useState(false);
+  const [showPropagation, setShowPropagation] = useState(false);
 
   if (isLoading) return <LoadingSpinner />;
   if (!project) return <div className="text-destructive">Project not found</div>;
@@ -55,7 +57,7 @@ export default function ProjectDetail() {
           <Edit className="w-4 h-4 mr-2" />
           Edit
         </Button>
-        <Button variant="outline">
+        <Button variant="outline" onClick={() => setShowPropagation(true)}>
           <RefreshCw className="w-4 h-4 mr-2" />
           Propagate Changes
         </Button>
@@ -141,6 +143,29 @@ export default function ProjectDetail() {
           projectId={projectId}
           projectName={project.name}
         />
+      )}
+
+      {showPropagation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto p-4">
+          <div className="bg-background rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b sticky top-0 bg-background z-10">
+              <h2 className="text-2xl font-bold">Propagate Schedule Changes</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Preview and apply schedule changes to supplier instances
+              </p>
+            </div>
+            <div className="p-6">
+              <PropagationPreview
+                projectId={projectId}
+                onClose={() => setShowPropagation(false)}
+                onApplied={() => {
+                  setShowPropagation(false);
+                  success('Propagation applied successfully');
+                }}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {showDeleteConfirm && (
