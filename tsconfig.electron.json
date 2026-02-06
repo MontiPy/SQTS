@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022"],
+    "outDir": "dist-electron",
+    "noEmit": false,
+    "jsx": "preserve",
+    "allowImportingTsExtensions": false,
+    "paths": {
+      "@shared/*": ["./shared/*"],
+      "@electron/*": ["./electron/*"]
+    }
+  },
+  "include": ["electron/**/*.ts", "shared/**/*.ts"],
+  "exclude": ["node_modules", "dist", "dist-electron"]
+}

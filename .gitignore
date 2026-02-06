@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dist-electron/
+*.db
+*.db.tmp
+*.db.backup
+.env
+.env.local
