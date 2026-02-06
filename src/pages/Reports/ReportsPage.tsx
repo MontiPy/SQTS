@@ -1,68 +1,96 @@
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import OverdueList from '@/components/OverdueList';
+
+const TABS = [
+  { id: 'overdue', label: 'Overdue Items' },
+  { id: 'due-soon', label: 'Due This Week' },
+  { id: 'supplier-progress', label: 'Supplier Progress' },
+  { id: 'project-progress', label: 'Project Progress' },
+] as const;
+
+type TabId = (typeof TABS)[number]['id'];
 
 export default function ReportsPage() {
-  // TODO: Implement real reporting once backend is connected
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<TabId>(
+    TABS.some((t) => t.id === tabParam) ? (tabParam as TabId) : 'overdue'
+  );
+
+  useEffect(() => {
+    if (tabParam && TABS.some((t) => t.id === tabParam)) {
+      setActiveTab(tabParam as TabId);
+    }
+  }, [tabParam]);
+
+  function handleTabChange(tabId: TabId) {
+    setActiveTab(tabId);
+    setSearchParams({ tab: tabId });
+  }
+
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">Reports</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Overdue Items</CardTitle>
-            <CardDescription>Items past their due date</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">No overdue items</p>
-          </CardContent>
-        </Card>
+      {/* Tab navigation */}
+      <div className="flex items-center gap-1 border-b mb-6">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => handleTabChange(tab.id)}
+            className={cn(
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              activeTab === tab.id
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
+      {/* Tab content */}
+      {activeTab === 'overdue' && <OverdueList />}
+
+      {activeTab === 'due-soon' && (
         <Card>
           <CardHeader>
             <CardTitle>Due This Week</CardTitle>
             <CardDescription>Items due in the next 7 days</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">No items due this week</p>
+            <p className="text-sm text-muted-foreground">Coming soon</p>
           </CardContent>
         </Card>
+      )}
 
+      {activeTab === 'supplier-progress' && (
         <Card>
           <CardHeader>
             <CardTitle>Supplier Progress</CardTitle>
             <CardDescription>Completion rates by supplier</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">No data available</p>
+            <p className="text-sm text-muted-foreground">Coming soon</p>
           </CardContent>
         </Card>
+      )}
 
+      {activeTab === 'project-progress' && (
         <Card>
           <CardHeader>
             <CardTitle>Project Progress</CardTitle>
             <CardDescription>Completion rates by project</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">No data available</p>
+            <p className="text-sm text-muted-foreground">Coming soon</p>
           </CardContent>
         </Card>
-      </div>
-
-      <Card className="mt-6">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-blue-500" />
-            <CardTitle>Note</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Full reporting functionality will be available once the IPC handler layer is connected.
-            Reports will include filterable lists, CSV export, and detailed progress tracking.
-          </p>
-        </CardContent>
-      </Card>
+      )}
     </div>
   );
 }

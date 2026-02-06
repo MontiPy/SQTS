@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Plus, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Plus, RefreshCw, Users } from 'lucide-react';
 import { useProject, useDeleteProject, useMilestones } from '@/hooks/use-projects';
 import { useToast } from '@/hooks/use-toast';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
@@ -10,6 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatDate } from '@/lib/format';
 import ProjectForm from './ProjectForm';
 import MilestoneEditor from './MilestoneEditor';
+import ProjectActivityManager from './ProjectActivityManager';
+import ApplyToSupplierDialog from './ApplyToSupplierDialog';
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +26,7 @@ export default function ProjectDetail() {
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMilestoneEditor, setShowMilestoneEditor] = useState(false);
+  const [showApplyDialog, setShowApplyDialog] = useState(false);
 
   if (isLoading) return <LoadingSpinner />;
   if (!project) return <div className="text-destructive">Project not found</div>;
@@ -99,28 +102,18 @@ export default function ProjectDetail() {
           </CardContent>
         </Card>
 
+        <ProjectActivityManager projectId={projectId} />
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Activities</CardTitle>
-            <Button size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Activity
+            <CardTitle>Suppliers</CardTitle>
+            <Button size="sm" onClick={() => setShowApplyDialog(true)}>
+              <Users className="w-4 h-4 mr-2" />
+              Apply to Supplier
             </Button>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">No activities added yet.</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Suppliers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4">
-              <Button>Apply to Supplier</Button>
-              <p className="text-sm text-muted-foreground">No suppliers assigned to this project yet.</p>
-            </div>
+            <p className="text-sm text-muted-foreground">No suppliers assigned to this project yet.</p>
           </CardContent>
         </Card>
       </div>
@@ -138,6 +131,15 @@ export default function ProjectDetail() {
           isOpen={showMilestoneEditor}
           onClose={() => setShowMilestoneEditor(false)}
           projectId={projectId}
+        />
+      )}
+
+      {showApplyDialog && (
+        <ApplyToSupplierDialog
+          isOpen={showApplyDialog}
+          onClose={() => setShowApplyDialog(false)}
+          projectId={projectId}
+          projectName={project.name}
         />
       )}
 

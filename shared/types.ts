@@ -239,3 +239,25 @@ export interface ActivityTemplateScheduleItem {
   sortOrder: number;
   createdAt: string;
 }
+
+// --- Dashboard / Overdue Types ---
+
+export interface OverdueItem {
+  instanceId: number;
+  supplierName: string;
+  projectName: string;
+  activityName: string;
+  itemName: string;
+  plannedDate: string;
+  status: ActivityStatus;
+  daysOverdue: number;
+  supplierId: number;
+  projectId: number;
+}
+
+export interface DashboardStats {
+  overdue: number;
+  dueSoon: number;
+  inProgress: number;
+  recentlyUpdated: number;
+}

@@ -49,6 +49,11 @@ export const CHANNELS = {
   APPLICABILITY_CLAUSES_UPDATE: 'applicability-clauses:update',
   APPLICABILITY_CLAUSES_DELETE: 'applicability-clauses:delete',
 
+  // Project Activities
+  PROJECT_ACTIVITIES_LIST: 'project-activities:list',
+  PROJECT_ACTIVITIES_ADD: 'project-activities:add',
+  PROJECT_ACTIVITIES_REMOVE: 'project-activities:remove',
+
   // Supplier Instances
   SUPPLIER_INSTANCES_APPLY_PROJECT: 'supplier-instances:apply-project',
   SUPPLIER_INSTANCES_REMOVE_PROJECT: 'supplier-instances:remove-project',
@@ -72,6 +77,10 @@ export const CHANNELS = {
   IMPORT_EXPORT_IMPORT: 'import-export:import',
   IMPORT_EXPORT_WIPE: 'import-export:wipe',
   IMPORT_EXPORT_BACKUP: 'import-export:backup',
+
+  // Dashboard
+  DASHBOARD_STATS: 'dashboard:stats',
+  DASHBOARD_OVERDUE: 'dashboard:overdue',
 
   // Settings
   SETTINGS_GET_ALL: 'settings:get-all',

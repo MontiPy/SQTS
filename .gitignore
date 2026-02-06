@@ -1,8 +1,43 @@
+# Dependencies
 node_modules/
+
+# Build outputs
 dist/
 dist-electron/
+out/
+
+# Database files
 *.db
 *.db.tmp
 *.db.backup
+*.db-journal
+backups/
+
+# Environment
 .env
 .env.local
+.env.*.local
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+
+# Vite
+*.local

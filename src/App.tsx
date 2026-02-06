@@ -7,6 +7,8 @@ import ProjectsList from './pages/Projects/ProjectsList';
 import ProjectDetail from './pages/Projects/ProjectDetail';
 import ActivityLibraryPage from './pages/ActivityLibrary/ActivityLibraryPage';
 import ActivityTemplateDetail from './pages/ActivityLibrary/ActivityTemplateDetail';
+import TrackingGrid from './pages/SupplierProjects/TrackingGrid';
+import SupplierProjectDetail from './pages/SupplierProjects/SupplierProjectDetail';
 import ReportsPage from './pages/Reports/ReportsPage';
 import SettingsPage from './pages/Settings/SettingsPage';
 import HelpPage from './pages/Help/HelpPage';
@@ -22,6 +24,8 @@ export default function App() {
         <Route path="/projects/:id" element={<ProjectDetail />} />
         <Route path="/activity-templates" element={<ActivityLibraryPage />} />
         <Route path="/activity-templates/:id" element={<ActivityTemplateDetail />} />
+        <Route path="/tracking" element={<TrackingGrid />} />
+        <Route path="/supplier-projects/:supplierId/:projectId" element={<SupplierProjectDetail />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/help" element={<HelpPage />} />

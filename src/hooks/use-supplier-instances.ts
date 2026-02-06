@@ -58,6 +58,7 @@ interface UpdateInstanceStatusParams {
   instanceId: number;
   status: ActivityStatus;
   actualDate?: string | null;
+  completionDate?: string | null;
 }
 
 export function useUpdateInstanceStatus() {
@@ -83,6 +84,7 @@ interface BatchUpdateStatusParams {
   instanceIds: number[];
   status: ActivityStatus;
   actualDate?: string | null;
+  completionDate?: string | null;
 }
 
 export function useBatchUpdateStatus() {

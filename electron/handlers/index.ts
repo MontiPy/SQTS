@@ -5,6 +5,7 @@ import { registerSupplierInstanceHandlers } from './supplier-instances';
 import { registerPropagationHandlers } from './propagation';
 import { registerImportExportHandlers } from './import-export';
 import { registerSettingsHandlers } from './settings';
+import { registerDashboardHandlers } from './dashboard';
 
 export function registerHandlers() {
   registerSupplierHandlers();
@@ -14,4 +15,5 @@ export function registerHandlers() {
   registerPropagationHandlers();
   registerImportExportHandlers();
   registerSettingsHandlers();
+  registerDashboardHandlers();
 }

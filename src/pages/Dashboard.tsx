@@ -2,17 +2,16 @@ import { useNavigate } from 'react-router-dom';
 import { AlertCircle, Clock, Circle, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { useDashboardStats } from '@/hooks/use-dashboard';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { data: stats } = useDashboardStats();
 
-  // TODO: Replace with real data from hooks once backend is connected
-  const stats = {
-    overdue: 0,
-    dueSoon: 0,
-    inProgress: 0,
-    recentlyUpdated: 0,
-  };
+  const overdue = stats?.overdue ?? 0;
+  const dueSoon = stats?.dueSoon ?? 0;
+  const inProgress = stats?.inProgress ?? 0;
+  const recentlyUpdated = stats?.recentlyUpdated ?? 0;
 
   return (
     <div>
@@ -30,7 +29,7 @@ export default function Dashboard() {
             <AlertCircle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.overdue}</div>
+            <div className="text-2xl font-bold">{overdue}</div>
             <p className="text-xs text-muted-foreground">Past due date</p>
           </CardContent>
         </Card>
@@ -41,7 +40,7 @@ export default function Dashboard() {
             <Clock className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.dueSoon}</div>
+            <div className="text-2xl font-bold">{dueSoon}</div>
             <p className="text-xs text-muted-foreground">Next 7 days</p>
           </CardContent>
         </Card>
@@ -52,7 +51,7 @@ export default function Dashboard() {
             <Circle className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.inProgress}</div>
+            <div className="text-2xl font-bold">{inProgress}</div>
             <p className="text-xs text-muted-foreground">Active items</p>
           </CardContent>
         </Card>
@@ -63,7 +62,7 @@ export default function Dashboard() {
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.recentlyUpdated}</div>
+            <div className="text-2xl font-bold">{recentlyUpdated}</div>
             <p className="text-xs text-muted-foreground">Last 24 hours</p>
           </CardContent>
         </Card>

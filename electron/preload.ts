@@ -64,6 +64,13 @@ const api = {
     delete: (id: number) => ipcRenderer.invoke('applicability-clauses:delete', id),
   },
 
+  // Project Activities
+  projectActivities: {
+    list: (projectId: number) => ipcRenderer.invoke('project-activities:list', projectId),
+    add: (params: any) => ipcRenderer.invoke('project-activities:add', params),
+    remove: (projectActivityId: number) => ipcRenderer.invoke('project-activities:remove', projectActivityId),
+  },
+
   // Supplier Instances
   supplierInstances: {
     applyProject: (params: any) => ipcRenderer.invoke('supplier-instances:apply-project', params),
@@ -84,6 +91,12 @@ const api = {
   propagation: {
     preview: (projectId: number) => ipcRenderer.invoke('propagation:preview', projectId),
     apply: (params: any) => ipcRenderer.invoke('propagation:apply', params),
+  },
+
+  // Dashboard
+  dashboard: {
+    stats: () => ipcRenderer.invoke('dashboard:stats'),
+    overdue: (params?: any) => ipcRenderer.invoke('dashboard:overdue', params),
   },
 
   // Import/Export
