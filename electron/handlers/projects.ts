@@ -2,7 +2,7 @@ import { ipcMain } from 'electron';
 import { z } from 'zod';
 import { query, queryOne, run, withTransaction } from '../database';
 import { createSuccessResponse, createErrorResponse, createAuditEvent } from './shared';
-import type { Project, ProjectMilestone, ProjectActivity, ProjectScheduleItem, ActivityTemplateScheduleItem } from '@shared/types';
+import type { Project, ProjectMilestone, ProjectActivity, ActivityTemplateScheduleItem } from '@shared/types';
 
 // Zod validation schemas
 const createProjectSchema = z.object({

@@ -2,6 +2,11 @@ import initSqlJs, { Database as SqlJsDatabase } from 'sql.js';
 import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+// ESM __dirname shim (Vite outputs ESM for the main process)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let db: SqlJsDatabase | null = null;
 let dbPath: string = '';

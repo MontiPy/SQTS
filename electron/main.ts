@@ -1,7 +1,12 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { getDatabase, closeDatabase, saveDatabaseImmediately } from './database';
 import { registerHandlers } from './handlers';
+
+// ESM __dirname shim (Vite outputs ESM for the main process)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let mainWindow: BrowserWindow | null = null;
 
