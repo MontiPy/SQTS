@@ -12,6 +12,8 @@ import SupplierProjectDetail from './pages/SupplierProjects/SupplierProjectDetai
 import ReportsPage from './pages/Reports/ReportsPage';
 import SettingsPage from './pages/Settings/SettingsPage';
 import HelpPage from './pages/Help/HelpPage';
+import PartsPage from './pages/Parts/PartsPage';
+import ImportExportPage from './pages/ImportExport/ImportExportPage';
 
 export default function App() {
   return (
@@ -26,7 +28,9 @@ export default function App() {
         <Route path="/activity-templates/:id" element={<ActivityTemplateDetail />} />
         <Route path="/tracking" element={<TrackingGrid />} />
         <Route path="/supplier-projects/:supplierId/:projectId" element={<SupplierProjectDetail />} />
+        <Route path="/parts" element={<PartsPage />} />
         <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/import-export" element={<ImportExportPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/help" element={<HelpPage />} />
       </Routes>

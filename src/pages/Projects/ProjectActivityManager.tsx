@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Plus, Trash2, Check, Library } from 'lucide-react';
+import { Plus, Trash2, Check, Library, RefreshCw } from 'lucide-react';
 import { useActivityTemplates } from '@/hooks/use-activity-templates';
 import { useProjectActivities, useAddProjectActivity, useRemoveProjectActivity } from '@/hooks/use-project-activities';
+import { useOutOfSyncActivities, useTemplateSyncPreview, useApplyTemplateSync } from '@/hooks/use-template-sync';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,11 +17,18 @@ export default function ProjectActivityManager({ projectId }: ProjectActivityMan
   const { success, error: showError } = useToast();
   const { data: projectActivities, isLoading: loadingActivities } = useProjectActivities(projectId);
   const { data: allTemplates, isLoading: loadingTemplates } = useActivityTemplates();
+  const { data: outOfSyncList } = useOutOfSyncActivities(projectId);
   const addActivity = useAddProjectActivity();
   const removeActivity = useRemoveProjectActivity();
+  const applySync = useApplyTemplateSync();
 
   const [showAddPanel, setShowAddPanel] = useState(false);
   const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
+  const [syncPreviewId, setSyncPreviewId] = useState<number | null>(null);
+
+  const { data: syncPreview, isLoading: loadingPreview } = useTemplateSyncPreview(syncPreviewId);
+
+  const outOfSyncIds = new Set(outOfSyncList?.map(a => a.id) || []);
 
   const addedTemplateIds = new Set(projectActivities?.map(a => a.activityTemplateId) || []);
 
@@ -42,6 +50,16 @@ export default function ProjectActivityManager({ projectId }: ProjectActivityMan
       setConfirmRemoveId(null);
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to remove activity');
+    }
+  };
+
+  const handleApplySync = async (projectActivityId: number) => {
+    try {
+      await applySync.mutateAsync({ projectActivityId, projectId });
+      success('Activity synced to latest template version');
+      setSyncPreviewId(null);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Failed to sync activity');
     }
   };
 
@@ -98,6 +116,59 @@ export default function ProjectActivityManager({ projectId }: ProjectActivityMan
           </div>
         )}
 
+        {/* Sync Preview Dialog */}
+        {syncPreviewId != null && (
+          <div className="mb-4 border rounded-lg p-4 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800">
+            <h4 className="text-sm font-medium mb-2">Template Sync Preview</h4>
+            {loadingPreview ? (
+              <p className="text-sm text-muted-foreground">Loading preview...</p>
+            ) : syncPreview ? (
+              <div>
+                <p className="text-sm mb-2">
+                  Syncing <span className="font-medium">{syncPreview.templateName}</span> to latest template
+                </p>
+                {syncPreview.changes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No structural changes detected. Version will be updated.</p>
+                ) : (
+                  <ul className="text-sm space-y-1 mb-3">
+                    {syncPreview.changes.map((change, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className={
+                          change.type === 'add' ? 'text-green-600 font-medium' :
+                          change.type === 'remove' ? 'text-red-600 font-medium' :
+                          'text-blue-600 font-medium'
+                        }>
+                          {change.type === 'add' ? '+' : change.type === 'remove' ? '-' : '~'}
+                        </span>
+                        <span>{change.details}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="flex items-center gap-2 mt-3">
+                  <Button
+                    size="sm"
+                    onClick={() => handleApplySync(syncPreviewId)}
+                    disabled={applySync.isPending}
+                  >
+                    <RefreshCw className={`w-3 h-3 mr-1 ${applySync.isPending ? 'animate-spin' : ''}`} />
+                    Apply Sync
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSyncPreviewId(null)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Failed to load preview.</p>
+            )}
+          </div>
+        )}
+
         {loadingActivities ? (
           <p className="text-sm text-muted-foreground">Loading activities...</p>
         ) : !projectActivities || projectActivities.length === 0 ? (
@@ -114,7 +185,7 @@ export default function ProjectActivityManager({ projectId }: ProjectActivityMan
                 <TableHead>Activity</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead className="text-center">Schedule Items</TableHead>
-                <TableHead className="text-center">Template Version</TableHead>
+                <TableHead className="text-center">Sync Status</TableHead>
                 <TableHead className="w-[80px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -126,35 +197,57 @@ export default function ProjectActivityManager({ projectId }: ProjectActivityMan
                     {activity.templateCategory || '--'}
                   </TableCell>
                   <TableCell className="text-center">{activity.scheduleItemCount}</TableCell>
-                  <TableCell className="text-center">v{activity.templateVersion}</TableCell>
-                  <TableCell>
-                    {confirmRemoveId === activity.id ? (
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleRemove(activity.id)}
-                          disabled={removeActivity.isPending}
-                        >
-                          <Check className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setConfirmRemoveId(null)}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
+                  <TableCell className="text-center">
+                    {outOfSyncIds.has(activity.id) ? (
+                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                        Update Available
+                      </span>
                     ) : (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setConfirmRemoveId(activity.id)}
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
+                      <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300">
+                        Current
+                      </span>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      {outOfSyncIds.has(activity.id) && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title="Sync from template"
+                          onClick={() => setSyncPreviewId(activity.id)}
+                        >
+                          <RefreshCw className="w-4 h-4 text-amber-600" />
+                        </Button>
+                      )}
+                      {confirmRemoveId === activity.id ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleRemove(activity.id)}
+                            disabled={removeActivity.isPending}
+                          >
+                            <Check className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setConfirmRemoveId(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setConfirmRemoveId(activity.id)}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

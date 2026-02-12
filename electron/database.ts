@@ -443,6 +443,38 @@ CREATE TABLE template_versions (
 CREATE INDEX idx_template_versions_template ON template_versions(activity_template_id);
 `,
   },
+  {
+    name: '003_parts_location_codes',
+    sql: `
+-- Supplier Location Codes
+CREATE TABLE supplier_location_codes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  supplier_id INTEGER NOT NULL,
+  supplier_number TEXT NOT NULL,
+  location_code TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE,
+  UNIQUE(supplier_id, location_code)
+);
+CREATE INDEX idx_supplier_location_codes_supplier ON supplier_location_codes(supplier_id);
+
+-- Parts
+CREATE TABLE parts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  supplier_project_id INTEGER NOT NULL,
+  location_code_id INTEGER,
+  part_number TEXT NOT NULL,
+  description TEXT,
+  pa_rank TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (supplier_project_id) REFERENCES supplier_projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (location_code_id) REFERENCES supplier_location_codes(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_parts_supplier_project ON parts(supplier_project_id);
+CREATE INDEX idx_parts_location_code ON parts(location_code_id);
+CREATE INDEX idx_parts_pa_rank ON parts(pa_rank);
+`,
+  },
 ];
 
 // Migration runner

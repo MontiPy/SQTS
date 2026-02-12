@@ -6,6 +6,8 @@ import { registerPropagationHandlers } from './propagation';
 import { registerImportExportHandlers } from './import-export';
 import { registerSettingsHandlers } from './settings';
 import { registerDashboardHandlers } from './dashboard';
+import { registerTemplateSyncHandlers } from './template-sync';
+import { registerPartsHandlers } from './parts';
 
 export function registerHandlers() {
   console.log('[SQTS] Registering all IPC handlers...');
@@ -25,5 +27,9 @@ export function registerHandlers() {
   console.log('[SQTS] Settings handlers registered');
   registerDashboardHandlers();
   console.log('[SQTS] Dashboard handlers registered');
+  registerTemplateSyncHandlers();
+  console.log('[SQTS] Template sync handlers registered');
+  registerPartsHandlers();
+  console.log('[SQTS] Parts handlers registered');
   console.log('[SQTS] All handlers registered successfully');
 }

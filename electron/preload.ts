@@ -102,10 +102,20 @@ const api = {
     apply: (params: any) => ipcRenderer.invoke('propagation:apply', params),
   },
 
+  // Template Sync
+  templateSync: {
+    checkOutOfSync: (projectId: number) => ipcRenderer.invoke('template-sync:check-out-of-sync', projectId),
+    preview: (projectActivityId: number) => ipcRenderer.invoke('template-sync:preview', projectActivityId),
+    apply: (projectActivityId: number) => ipcRenderer.invoke('template-sync:apply', projectActivityId),
+  },
+
   // Dashboard
   dashboard: {
     stats: () => ipcRenderer.invoke('dashboard:stats'),
     overdue: (params?: any) => ipcRenderer.invoke('dashboard:overdue', params),
+    dueSoon: (params?: any) => ipcRenderer.invoke('dashboard:due-soon', params),
+    supplierProgress: () => ipcRenderer.invoke('dashboard:supplier-progress'),
+    projectProgress: () => ipcRenderer.invoke('dashboard:project-progress'),
   },
 
   // Import/Export
@@ -121,6 +131,23 @@ const api = {
     getAll: () => ipcRenderer.invoke('settings:get-all'),
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
     update: (params: any) => ipcRenderer.invoke('settings:update', params),
+  },
+
+  // Parts & Location Codes
+  parts: {
+    list: (supplierProjectId: number) => ipcRenderer.invoke('parts:list', supplierProjectId),
+    get: (id: number) => ipcRenderer.invoke('parts:get', id),
+    create: (params: any) => ipcRenderer.invoke('parts:create', params),
+    update: (id: number, params: any) => ipcRenderer.invoke('parts:update', id, params),
+    delete: (id: number) => ipcRenderer.invoke('parts:delete', id),
+  },
+
+  locationCodes: {
+    list: (supplierId: number) => ipcRenderer.invoke('location-codes:list', supplierId),
+    get: (id: number) => ipcRenderer.invoke('location-codes:get', id),
+    create: (params: any) => ipcRenderer.invoke('location-codes:create', params),
+    update: (id: number, params: any) => ipcRenderer.invoke('location-codes:update', id, params),
+    delete: (id: number) => ipcRenderer.invoke('location-codes:delete', id),
   },
 
   // Window (Electron focus workaround)

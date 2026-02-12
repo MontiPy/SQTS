@@ -19,6 +19,7 @@ export default function SettingsPage() {
   const [propagationSkipLocked, setPropagationSkipLocked] = useState(false);
   const [propagationSkipOverridden, setPropagationSkipOverridden] = useState(false);
   const [useBusinessDays, setUseBusinessDays] = useState(false);
+  const [dateFormat, setDateFormat] = useState('YYYY-MM-DD');
 
   useEffect(() => {
     if (settings) {
@@ -28,6 +29,7 @@ export default function SettingsPage() {
       setPropagationSkipLocked(settings.propagationSkipLocked || false);
       setPropagationSkipOverridden(settings.propagationSkipOverridden || false);
       setUseBusinessDays(settings.useBusinessDays || false);
+      setDateFormat(settings.dateFormat || 'YYYY-MM-DD');
     }
   }, [settings]);
 
@@ -42,6 +44,7 @@ export default function SettingsPage() {
         updateSetting.mutateAsync({ key: 'propagationSkipLocked', value: propagationSkipLocked }),
         updateSetting.mutateAsync({ key: 'propagationSkipOverridden', value: propagationSkipOverridden }),
         updateSetting.mutateAsync({ key: 'useBusinessDays', value: useBusinessDays }),
+        updateSetting.mutateAsync({ key: 'dateFormat', value: dateFormat }),
       ]);
       success('Settings saved successfully');
     } catch (err) {
@@ -183,7 +186,7 @@ export default function SettingsPage() {
             <CardTitle>Date Calculation</CardTitle>
             <CardDescription>Configure how dates are calculated</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="flex items-center space-x-2">
               <input
                 type="checkbox"
@@ -194,6 +197,25 @@ export default function SettingsPage() {
               />
               <Label htmlFor="useBusinessDays">Use business days (skip weekends)</Label>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Date Display Format</CardTitle>
+            <CardDescription>Choose how dates are displayed throughout the application</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <select
+              value={dateFormat}
+              onChange={(e) => setDateFormat(e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="YYYY-MM-DD">YYYY-MM-DD (2025-01-31)</option>
+              <option value="MM/DD/YYYY">MM/DD/YYYY (01/31/2025)</option>
+              <option value="DD/MM/YYYY">DD/MM/YYYY (31/01/2025)</option>
+              <option value="MMM DD, YYYY">MMM DD, YYYY (Jan 31, 2025)</option>
+            </select>
           </CardContent>
         </Card>
       </div>

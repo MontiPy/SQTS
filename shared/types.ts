@@ -267,6 +267,77 @@ export interface TemplateSnapshot {
   }>;
 }
 
+// --- Template Sync Types ---
+
+export interface TemplateSyncPreview {
+  projectActivityId: number;
+  templateId: number;
+  templateName: string;
+  currentVersion: number;
+  latestVersion: number;
+  changes: TemplateSyncChange[];
+}
+
+export interface TemplateSyncChange {
+  type: 'add' | 'remove' | 'update';
+  itemName: string;
+  details: string;
+}
+
+// --- Reports Types ---
+
+export interface DueSoonItem {
+  instanceId: number;
+  supplierName: string;
+  projectName: string;
+  activityName: string;
+  itemName: string;
+  plannedDate: string;
+  status: ActivityStatus;
+  daysUntilDue: number;
+  supplierId: number;
+  projectId: number;
+}
+
+export interface SupplierProgressRow {
+  supplierId: number;
+  supplierName: string;
+  totalItems: number;
+  completedItems: number;
+  overdueItems: number;
+  completionPercent: number;
+}
+
+export interface ProjectProgressRow {
+  projectId: number;
+  projectName: string;
+  totalSuppliers: number;
+  totalItems: number;
+  completedItems: number;
+  overdueItems: number;
+  completionPercent: number;
+}
+
+// --- Parts & Location Codes ---
+
+export interface SupplierLocationCode {
+  id: number;
+  supplierId: number;
+  supplierNumber: string;
+  locationCode: string;
+  createdAt: string;
+}
+
+export interface Part {
+  id: number;
+  supplierProjectId: number;
+  locationCodeId: number | null;
+  partNumber: string;
+  description: string | null;
+  paRank: string | null;
+  createdAt: string;
+}
+
 // --- Dashboard / Overdue Types ---
 
 export interface OverdueItem {

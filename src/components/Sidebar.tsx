@@ -6,7 +6,9 @@ import {
   FolderKanban,
   Grid3X3,
   ListChecks,
+  Package,
   BarChart3,
+  ArrowLeftRight,
   Settings,
   HelpCircle,
   ChevronLeft,
@@ -19,10 +21,12 @@ const primaryNav = [
   { name: 'Projects', path: '/projects', icon: FolderKanban },
   { name: 'Tracking', path: '/tracking', icon: Grid3X3 },
   { name: 'Activity Templates', path: '/activity-templates', icon: ListChecks },
+  { name: 'Parts', path: '/parts', icon: Package },
   { name: 'Reports', path: '/reports', icon: BarChart3 },
 ];
 
 const secondaryNav = [
+  { name: 'Import / Export', path: '/import-export', icon: ArrowLeftRight },
   { name: 'Settings', path: '/settings', icon: Settings },
   { name: 'Help', path: '/help', icon: HelpCircle },
 ];

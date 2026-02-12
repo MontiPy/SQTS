@@ -94,15 +94,18 @@ export default function SupplierDetail() {
             <p className="text-sm text-muted-foreground">No projects assigned to this supplier yet.</p>
           ) : (
             <div className="space-y-2">
-              {supplierProjects.map((sp) => (
+              {supplierProjects.map((sp: any) => (
                 <div
                   key={sp.id}
                   className="flex items-center justify-between p-3 border rounded-md hover:bg-accent cursor-pointer"
-                  onClick={() => navigate(`/supplier-projects/${sp.id}`)}
+                  onClick={() => navigate(`/supplier-projects/${supplierId}/${sp.projectId}`)}
                 >
                   <div>
-                    <p className="font-medium">Project ID: {sp.projectId}</p>
-                    <p className="text-sm text-muted-foreground">Version: {sp.projectVersion}</p>
+                    <p className="font-medium">{sp.projectName || `Project #${sp.projectId}`}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Version: {sp.projectVersion}
+                      {sp.activityCount != null && ` · ${sp.activityCount} activities`}
+                    </p>
                   </div>
                 </div>
               ))}

@@ -2,11 +2,12 @@ import { useNavigate } from 'react-router-dom';
 import { AlertCircle, Clock, Circle, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useDashboardStats } from '@/hooks/use-dashboard';
+import { useDashboardStats, useOverdueItems } from '@/hooks/use-dashboard';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { data: stats } = useDashboardStats();
+  const { data: overdueItems } = useOverdueItems();
 
   const overdue = stats?.overdue ?? 0;
   const dueSoon = stats?.dueSoon ?? 0;
@@ -74,14 +75,14 @@ export default function Dashboard() {
             <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/suppliers/new')}>
-              Add New Supplier
+            <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/suppliers')}>
+              Manage Suppliers
             </Button>
-            <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/projects/new')}>
-              Create New Project
+            <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/projects')}>
+              Manage Projects
             </Button>
-            <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/activity-templates/new')}>
-              Create Activity Template
+            <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/activity-templates')}>
+              Activity Templates
             </Button>
             <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/reports')}>
               View Reports
@@ -91,10 +92,42 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
+            <CardTitle>Overdue Items</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">No recent activity</p>
+            {!overdueItems || overdueItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No overdue items</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {overdueItems.slice(0, 8).map((item) => (
+                  <div
+                    key={item.instanceId}
+                    className="flex items-center justify-between p-2 rounded border hover:bg-accent/50 cursor-pointer text-sm"
+                    onClick={() => navigate(`/supplier-projects/${item.supplierId}/${item.projectId}`)}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium truncate">{item.supplierName}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {item.projectName} &middot; {item.itemName}
+                      </p>
+                    </div>
+                    <span className="text-xs text-destructive font-medium whitespace-nowrap ml-2">
+                      {item.daysOverdue}d overdue
+                    </span>
+                  </div>
+                ))}
+                {overdueItems.length > 8 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-xs"
+                    onClick={() => navigate('/reports?tab=overdue')}
+                  >
+                    View all {overdueItems.length} overdue items
+                  </Button>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
