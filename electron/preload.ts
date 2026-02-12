@@ -48,6 +48,15 @@ const api = {
     reorder: (items: Array<{ id: number; sortOrder: number }>) => ipcRenderer.invoke('template-schedule-items:reorder', items),
   },
 
+  // Template Versions
+  templateVersions: {
+    list: (templateId: number) => ipcRenderer.invoke('template-versions:list', templateId),
+    get: (id: number) => ipcRenderer.invoke('template-versions:get', id),
+    save: (params: { activityTemplateId: number; name: string; description?: string }) => ipcRenderer.invoke('template-versions:save', params),
+    restore: (id: number) => ipcRenderer.invoke('template-versions:restore', id),
+    delete: (id: number) => ipcRenderer.invoke('template-versions:delete', id),
+  },
+
   // Applicability Rules
   applicabilityRules: {
     get: (templateId: number) => ipcRenderer.invoke('applicability-rules:get', templateId),
@@ -113,8 +122,14 @@ const api = {
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
     update: (params: any) => ipcRenderer.invoke('settings:update', params),
   },
+
+  // Window (Electron focus workaround)
+  window: {
+    refocus: () => ipcRenderer.invoke('window:refocus'),
+  },
 };
 
 contextBridge.exposeInMainWorld('sqts', api);
 
+// Type-only export for global.d.ts — stripped at compile time, no JS output
 export type SQTSApi = typeof api;

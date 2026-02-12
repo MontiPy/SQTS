@@ -98,7 +98,7 @@ export default function ActivityLibraryPage() {
                   >
                     <TableCell className="font-medium">{template.name}</TableCell>
                     <TableCell>{template.category || '--'}</TableCell>
-                    <TableCell>v{template.version}</TableCell>
+                    <TableCell>{template.latestVersionName || '--'}</TableCell>
                     <TableCell>
                       <Button
                         variant="ghost"

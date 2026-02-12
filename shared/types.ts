@@ -64,6 +64,7 @@ export interface ActivityTemplate {
   version: number;
   updatedAt: string | null;
   createdAt: string;
+  latestVersionName?: string | null;
 }
 
 // --- Project Structure ---
@@ -238,6 +239,32 @@ export interface ActivityTemplateScheduleItem {
   fixedDate: string | null;
   sortOrder: number;
   createdAt: string;
+}
+
+// --- Template Versioning ---
+
+export interface TemplateVersion {
+  id: number;
+  activityTemplateId: number;
+  name: string;
+  description: string | null;
+  versionNumber: number;
+  snapshot: string;
+  createdAt: string;
+}
+
+export interface TemplateSnapshot {
+  template: { name: string; description: string | null; category: string | null };
+  scheduleItems: Array<{
+    kind: ScheduleItemKind;
+    name: string;
+    anchorType: AnchorType;
+    anchorRefIndex: number | null;
+    anchorMilestoneName: string | null;
+    offsetDays: number | null;
+    fixedDate: string | null;
+    sortOrder: number;
+  }>;
 }
 
 // --- Dashboard / Overdue Types ---

@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
-// ESM __dirname shim (Vite outputs ESM for the main process)
+// ESM __dirname shim
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -425,6 +425,22 @@ CREATE TABLE audit_events (
 );
 CREATE INDEX idx_audit_events_entity ON audit_events(entity_type, entity_id);
 CREATE INDEX idx_audit_events_created ON audit_events(created_at);
+`,
+  },
+  {
+    name: '002_template_versions',
+    sql: `
+CREATE TABLE template_versions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  activity_template_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  version_number INTEGER NOT NULL,
+  snapshot TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (activity_template_id) REFERENCES activity_templates(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_template_versions_template ON template_versions(activity_template_id);
 `,
   },
 ];

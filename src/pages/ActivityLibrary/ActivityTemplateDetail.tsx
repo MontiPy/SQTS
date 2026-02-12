@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Plus } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Plus, Save, History } from 'lucide-react';
 import {
   useActivityTemplate,
   useDeleteActivityTemplate,
@@ -9,6 +9,7 @@ import {
   useUpdateTemplateScheduleItem,
   useDeleteTemplateScheduleItem,
 } from '@/hooks/use-activity-templates';
+import { useTemplateVersions } from '@/hooks/use-template-versions';
 import { useToast } from '@/hooks/use-toast';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import ActivityTemplateForm from './ActivityTemplateForm';
+import SaveVersionDialog from './SaveVersionDialog';
+import VersionHistoryPanel from './VersionHistoryPanel';
 import type { ActivityTemplateScheduleItem, AnchorType, ScheduleItemKind } from '@shared/types';
 
 export default function ActivityTemplateDetail() {
@@ -26,6 +29,8 @@ export default function ActivityTemplateDetail() {
 
   const { data: template, isLoading } = useActivityTemplate(templateId);
   const { data: scheduleItems } = useTemplateScheduleItems(templateId);
+  const { data: versions } = useTemplateVersions(templateId);
+  const latestVersion = versions?.[0];
   const deleteTemplate = useDeleteActivityTemplate();
   const createItem = useCreateTemplateScheduleItem();
   const updateItem = useUpdateTemplateScheduleItem();
@@ -33,7 +38,32 @@ export default function ActivityTemplateDetail() {
 
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showSaveVersion, setShowSaveVersion] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [newItem, setNewItem] = useState<Partial<ActivityTemplateScheduleItem> | null>(null);
+  const [newItemKey, setNewItemKey] = useState<number | null>(null);
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [editingItemData, setEditingItemData] = useState<Partial<ActivityTemplateScheduleItem> | null>(null);
+  const [newItemUseTemplateMilestone, setNewItemUseTemplateMilestone] = useState(true);
+  const [editingItemUseTemplateMilestone, setEditingItemUseTemplateMilestone] = useState(true);
+
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus the name input when newItem is created
+  useEffect(() => {
+    if (newItem && nameInputRef.current) {
+      // Small delay to ensure DOM is ready
+      setTimeout(async () => {
+        // Force blur first to reset focus state
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+        nameInputRef.current?.focus();
+        // Electron workaround: Refocus the BrowserWindow to fix keyboard event routing
+        await window.sqts.window.refocus();
+      }, 10);
+    }
+  }, [newItemKey]);
 
   if (isLoading) return <LoadingSpinner />;
   if (!template) return <div className="text-destructive">Template not found</div>;
@@ -56,6 +86,8 @@ export default function ActivityTemplateDetail() {
       anchorType: 'FIXED_DATE',
       sortOrder: maxSort + 1,
     });
+    setNewItemKey(Date.now());
+    setNewItemUseTemplateMilestone(true);
   };
 
   const handleSaveNewItem = async () => {
@@ -71,24 +103,64 @@ export default function ActivityTemplateDetail() {
         name: newItem.name,
         anchorType: newItem.anchorType as AnchorType,
         anchorRefId: newItem.anchorRefId || null,
+        anchorMilestoneName: newItem.anchorMilestoneName || null,
         offsetDays: newItem.offsetDays || null,
         fixedDate: newItem.fixedDate || null,
         sortOrder: newItem.sortOrder || 0,
       });
       success('Schedule item created successfully');
       setNewItem(null);
+      setNewItemUseTemplateMilestone(true);
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to create schedule item');
     }
   };
 
-  const handleUpdateItem = async (item: ActivityTemplateScheduleItem) => {
+  const handleStartEdit = (item: ActivityTemplateScheduleItem) => {
+    setEditingItemId(item.id);
+    setEditingItemData({ ...item });
+    // Check if the milestone name matches a template milestone
+    if (item.anchorType === 'PROJECT_MILESTONE' && item.anchorMilestoneName) {
+      const hasMatch = scheduleItems?.some(si =>
+        si.kind === 'MILESTONE' && si.name === item.anchorMilestoneName
+      );
+      setEditingItemUseTemplateMilestone(hasMatch || false);
+    } else {
+      setEditingItemUseTemplateMilestone(true);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingItemData || !editingItemData.name?.trim()) {
+      showError('Item name is required');
+      return;
+    }
+
     try {
-      await updateItem.mutateAsync(item);
+      await updateItem.mutateAsync({
+        id: editingItemId!,
+        templateId,
+        kind: editingItemData.kind as ScheduleItemKind,
+        name: editingItemData.name,
+        anchorType: editingItemData.anchorType as AnchorType,
+        anchorRefId: editingItemData.anchorRefId || null,
+        anchorMilestoneName: editingItemData.anchorMilestoneName || null,
+        offsetDays: editingItemData.offsetDays || null,
+        fixedDate: editingItemData.fixedDate || null,
+        sortOrder: editingItemData.sortOrder || 0,
+      });
       success('Schedule item updated successfully');
+      setEditingItemId(null);
+      setEditingItemData(null);
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to update schedule item');
     }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingItemId(null);
+    setEditingItemData(null);
+    setEditingItemUseTemplateMilestone(true);
   };
 
   const handleDeleteItem = async (itemId: number) => {
@@ -110,9 +182,18 @@ export default function ActivityTemplateDetail() {
         <div className="flex-1">
           <h1 className="text-3xl font-bold">{template.name}</h1>
           <p className="text-muted-foreground mt-1">
-            Version {template.version} • {template.category || 'Uncategorized'}
+            {template.category || 'Uncategorized'}
+            {latestVersion && <> &middot; {latestVersion.name}</>}
           </p>
         </div>
+        <Button variant="outline" onClick={() => setShowSaveVersion(true)}>
+          <Save className="w-4 h-4 mr-2" />
+          Save Version
+        </Button>
+        <Button variant="outline" onClick={() => setShowVersionHistory(true)}>
+          <History className="w-4 h-4 mr-2" />
+          Version History
+        </Button>
         <Button variant="outline" onClick={() => setShowEditForm(true)}>
           <Edit className="w-4 h-4 mr-2" />
           Edit
@@ -140,7 +221,7 @@ export default function ActivityTemplateDetail() {
           </Button>
         </CardHeader>
         <CardContent>
-          {!scheduleItems || scheduleItems.length === 0 ? (
+          {(!scheduleItems || scheduleItems.length === 0) && !newItem ? (
             <p className="text-sm text-muted-foreground">No schedule items defined yet.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -151,42 +232,193 @@ export default function ActivityTemplateDetail() {
                     <TableHead>Type</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Anchor Type</TableHead>
+                    <TableHead>Anchor Details</TableHead>
                     <TableHead>Offset Days</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {scheduleItems.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.sortOrder}</TableCell>
-                      <TableCell>
-                        <span className={`text-xs px-2 py-1 rounded ${
-                          item.kind === 'MILESTONE' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
-                        }`}>
-                          {item.kind}
-                        </span>
-                      </TableCell>
-                      <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell className="text-sm">{item.anchorType}</TableCell>
-                      <TableCell className="text-sm">{item.offsetDays || '--'}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => handleUpdateItem(item)}>
-                            Edit
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteItem(item.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {scheduleItems.map((item) => {
+                    const isEditing = editingItemId === item.id;
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          {isEditing ? (
+                            <Input
+                              type="number"
+                              value={editingItemData?.sortOrder || ''}
+                              onChange={(e) => setEditingItemData({ ...editingItemData, sortOrder: parseInt(e.target.value) })}
+                              className="w-20"
+                            />
+                          ) : (
+                            item.sortOrder
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isEditing ? (
+                            <select
+                              value={editingItemData?.kind || 'TASK'}
+                              onChange={(e) => setEditingItemData({ ...editingItemData, kind: e.target.value as ScheduleItemKind })}
+                              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                            >
+                              <option value="TASK">TASK</option>
+                              <option value="MILESTONE">MILESTONE</option>
+                            </select>
+                          ) : (
+                            <span className={`text-xs px-2 py-1 rounded ${
+                              item.kind === 'MILESTONE' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                            }`}>
+                              {item.kind}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {isEditing ? (
+                            <Input
+                              value={editingItemData?.name || ''}
+                              onChange={(e) => setEditingItemData({ ...editingItemData, name: e.target.value })}
+                              placeholder="Item name"
+                            />
+                          ) : (
+                            item.name
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {isEditing ? (
+                            <select
+                              value={editingItemData?.anchorType || 'FIXED_DATE'}
+                              onChange={(e) => setEditingItemData({ ...editingItemData, anchorType: e.target.value as AnchorType })}
+                              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                            >
+                              <option value="FIXED_DATE">FIXED_DATE</option>
+                              <option value="SCHEDULE_ITEM">SCHEDULE_ITEM</option>
+                              <option value="COMPLETION">COMPLETION</option>
+                              <option value="PROJECT_MILESTONE">PROJECT_MILESTONE</option>
+                            </select>
+                          ) : (
+                            item.anchorType
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {isEditing ? (
+                            <>
+                              {editingItemData?.anchorType === 'SCHEDULE_ITEM' && (
+                                <select
+                                  value={editingItemData?.anchorRefId || ''}
+                                  onChange={(e) => setEditingItemData({ ...editingItemData, anchorRefId: e.target.value ? parseInt(e.target.value) : null })}
+                                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                                >
+                                  <option value="">--</option>
+                                  {scheduleItems
+                                    ?.filter(si => si.id !== editingItemId)
+                                    .map(si => (
+                                      <option key={si.id} value={si.id}>
+                                        {si.name} ({si.kind})
+                                      </option>
+                                    ))}
+                                </select>
+                              )}
+                              {editingItemData?.anchorType === 'PROJECT_MILESTONE' && (
+                                <div className="space-y-2">
+                                  <label className="flex items-center gap-2 text-sm">
+                                    <input
+                                      type="checkbox"
+                                      checked={editingItemUseTemplateMilestone}
+                                      onChange={(e) => {
+                                        setEditingItemUseTemplateMilestone(e.target.checked);
+                                        if (!e.target.checked) {
+                                          setEditingItemData({ ...editingItemData, anchorMilestoneName: '' });
+                                        }
+                                      }}
+                                      className="rounded"
+                                    />
+                                    Match to milestone in this template
+                                  </label>
+                                  {editingItemUseTemplateMilestone ? (
+                                    <select
+                                      value={editingItemData?.anchorMilestoneName || ''}
+                                      onChange={(e) => setEditingItemData({ ...editingItemData, anchorMilestoneName: e.target.value })}
+                                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                                    >
+                                      <option value="">--</option>
+                                      {scheduleItems
+                                        ?.filter(si => si.kind === 'MILESTONE' && si.id !== editingItemId)
+                                        .map(si => (
+                                          <option key={si.id} value={si.name}>
+                                            {si.name}
+                                          </option>
+                                        ))}
+                                    </select>
+                                  ) : (
+                                    <Input
+                                      value={editingItemData?.anchorMilestoneName || ''}
+                                      onChange={(e) => setEditingItemData({ ...editingItemData, anchorMilestoneName: e.target.value })}
+                                      placeholder="Enter milestone name"
+                                    />
+                                  )}
+                                </div>
+                              )}
+                              {editingItemData?.anchorType === 'FIXED_DATE' && (
+                                <Input
+                                  type="date"
+                                  value={editingItemData?.fixedDate || ''}
+                                  onChange={(e) => setEditingItemData({ ...editingItemData, fixedDate: e.target.value })}
+                                />
+                              )}
+                              {editingItemData?.anchorType === 'COMPLETION' && (
+                                <span className="text-muted-foreground">--</span>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              {item.anchorType === 'SCHEDULE_ITEM' && (scheduleItems?.find(si => si.id === item.anchorRefId)?.name || '--')}
+                              {item.anchorType === 'PROJECT_MILESTONE' && (item.anchorMilestoneName || '--')}
+                              {item.anchorType === 'FIXED_DATE' && (item.fixedDate || '--')}
+                              {item.anchorType === 'COMPLETION' && '--'}
+                            </>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {isEditing ? (
+                            <Input
+                              type="number"
+                              value={editingItemData?.offsetDays || ''}
+                              onChange={(e) => setEditingItemData({ ...editingItemData, offsetDays: parseInt(e.target.value) })}
+                              placeholder="0"
+                              className="w-20"
+                            />
+                          ) : (
+                            item.offsetDays || '--'
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            {isEditing ? (
+                              <>
+                                <Button size="sm" onClick={handleSaveEdit}>Save</Button>
+                                <Button variant="outline" size="sm" onClick={handleCancelEdit}>Cancel</Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button variant="ghost" size="sm" onClick={() => handleStartEdit(item)}>
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteItem(item.id)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                   {newItem && (
-                    <TableRow>
+                    <TableRow key={newItemKey || 'new-item'}>
                       <TableCell>
                         <Input
                           type="number"
@@ -207,6 +439,8 @@ export default function ActivityTemplateDetail() {
                       </TableCell>
                       <TableCell>
                         <Input
+                          key={`name-input-${newItemKey}`}
+                          ref={nameInputRef}
                           value={newItem.name || ''}
                           onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
                           placeholder="Item name"
@@ -223,6 +457,72 @@ export default function ActivityTemplateDetail() {
                           <option value="COMPLETION">COMPLETION</option>
                           <option value="PROJECT_MILESTONE">PROJECT_MILESTONE</option>
                         </select>
+                      </TableCell>
+                      <TableCell>
+                        {newItem.anchorType === 'SCHEDULE_ITEM' && (
+                          <select
+                            value={newItem.anchorRefId || ''}
+                            onChange={(e) => setNewItem({ ...newItem, anchorRefId: e.target.value ? parseInt(e.target.value) : null })}
+                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                          >
+                            <option value="">--</option>
+                            {scheduleItems?.map(si => (
+                              <option key={si.id} value={si.id}>
+                                {si.name} ({si.kind})
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        {newItem.anchorType === 'PROJECT_MILESTONE' && (
+                          <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={newItemUseTemplateMilestone}
+                                onChange={(e) => {
+                                  setNewItemUseTemplateMilestone(e.target.checked);
+                                  if (!e.target.checked) {
+                                    setNewItem({ ...newItem, anchorMilestoneName: '' });
+                                  }
+                                }}
+                                className="rounded"
+                              />
+                              Match to milestone in this template
+                            </label>
+                            {newItemUseTemplateMilestone ? (
+                              <select
+                                value={newItem.anchorMilestoneName || ''}
+                                onChange={(e) => setNewItem({ ...newItem, anchorMilestoneName: e.target.value })}
+                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                              >
+                                <option value="">--</option>
+                                {scheduleItems
+                                  ?.filter(si => si.kind === 'MILESTONE')
+                                  .map(si => (
+                                    <option key={si.id} value={si.name}>
+                                      {si.name}
+                                    </option>
+                                  ))}
+                              </select>
+                            ) : (
+                              <Input
+                                value={newItem.anchorMilestoneName || ''}
+                                onChange={(e) => setNewItem({ ...newItem, anchorMilestoneName: e.target.value })}
+                                placeholder="Enter milestone name"
+                              />
+                            )}
+                          </div>
+                        )}
+                        {newItem.anchorType === 'FIXED_DATE' && (
+                          <Input
+                            type="date"
+                            value={newItem.fixedDate || ''}
+                            onChange={(e) => setNewItem({ ...newItem, fixedDate: e.target.value })}
+                          />
+                        )}
+                        {newItem.anchorType === 'COMPLETION' && (
+                          <span className="text-muted-foreground text-sm">--</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Input
@@ -255,6 +555,18 @@ export default function ActivityTemplateDetail() {
           template={template}
         />
       )}
+
+      <SaveVersionDialog
+        templateId={templateId}
+        isOpen={showSaveVersion}
+        onClose={() => setShowSaveVersion(false)}
+      />
+
+      <VersionHistoryPanel
+        templateId={templateId}
+        isOpen={showVersionHistory}
+        onClose={() => setShowVersionHistory(false)}
+      />
 
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

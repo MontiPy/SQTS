@@ -7,6 +7,8 @@ import type {
   ActivityTemplateScheduleItem,
   ActivityTemplateApplicabilityRule,
   ActivityTemplateApplicabilityClause,
+  TemplateVersion,
+  TemplateSnapshot,
 } from '@shared/types';
 
 // Zod validation schemas
@@ -71,7 +73,14 @@ export function registerActivityHandlers() {
   // Activity Templates
   ipcMain.handle('activity-templates:list', async () => {
     try {
-      const templates = query<ActivityTemplate>('SELECT * FROM activity_templates ORDER BY name');
+      const templates = query<ActivityTemplate>(`
+        SELECT at.*,
+          (SELECT tv.name FROM template_versions tv
+           WHERE tv.activity_template_id = at.id
+           ORDER BY tv.created_at DESC LIMIT 1) AS latest_version_name
+        FROM activity_templates at
+        ORDER BY at.name
+      `);
       return createSuccessResponse(templates);
     } catch (error: any) {
       return createErrorResponse(error.message);
@@ -601,6 +610,162 @@ export function registerActivityHandlers() {
     try {
       run('DELETE FROM activity_template_applicability_clauses WHERE id = ?', [id]);
       createAuditEvent('applicability_clause', id, 'delete');
+      return createSuccessResponse({ id });
+    } catch (error: any) {
+      return createErrorResponse(error.message);
+    }
+  });
+
+  // Template Versions
+  ipcMain.handle('template-versions:list', async (_, templateId: number) => {
+    try {
+      const versions = query<TemplateVersion>(
+        'SELECT * FROM template_versions WHERE activity_template_id = ? ORDER BY created_at DESC',
+        [templateId]
+      );
+      return createSuccessResponse(versions);
+    } catch (error: any) {
+      return createErrorResponse(error.message);
+    }
+  });
+
+  ipcMain.handle('template-versions:get', async (_, id: number) => {
+    try {
+      const version = queryOne<TemplateVersion>(
+        'SELECT * FROM template_versions WHERE id = ?',
+        [id]
+      );
+      if (!version) {
+        return createErrorResponse('Version not found');
+      }
+      return createSuccessResponse(version);
+    } catch (error: any) {
+      return createErrorResponse(error.message);
+    }
+  });
+
+  ipcMain.handle('template-versions:save', async (_, params: { activityTemplateId: number; name: string; description?: string }) => {
+    try {
+      const template = queryOne<ActivityTemplate>(
+        'SELECT * FROM activity_templates WHERE id = ?',
+        [params.activityTemplateId]
+      );
+      if (!template) {
+        return createErrorResponse('Template not found');
+      }
+
+      const items = query<ActivityTemplateScheduleItem>(
+        'SELECT * FROM activity_template_schedule_items WHERE activity_template_id = ? ORDER BY sort_order',
+        [params.activityTemplateId]
+      );
+
+      // Build ID-to-index map for portable anchor references
+      const idToIndex = new Map<number, number>();
+      items.forEach((item, index) => {
+        idToIndex.set(item.id, index);
+      });
+
+      const snapshot: TemplateSnapshot = {
+        template: {
+          name: template.name,
+          description: template.description,
+          category: template.category,
+        },
+        scheduleItems: items.map(item => ({
+          kind: item.kind,
+          name: item.name,
+          anchorType: item.anchorType,
+          anchorRefIndex: item.anchorRefId != null ? (idToIndex.get(item.anchorRefId) ?? null) : null,
+          anchorMilestoneName: (item as any).anchorMilestoneName || null,
+          offsetDays: item.offsetDays,
+          fixedDate: item.fixedDate,
+          sortOrder: item.sortOrder,
+        })),
+      };
+
+      run(
+        `INSERT INTO template_versions (activity_template_id, name, description, version_number, snapshot)
+         VALUES (?, ?, ?, ?, ?)`,
+        [params.activityTemplateId, params.name, params.description || null, template.version, JSON.stringify(snapshot)]
+      );
+
+      const version = queryOne<TemplateVersion>(
+        'SELECT * FROM template_versions WHERE id = last_insert_rowid()'
+      );
+
+      createAuditEvent('template_version', version!.id, 'save', { templateId: params.activityTemplateId, name: params.name });
+      return createSuccessResponse(version);
+    } catch (error: any) {
+      return createErrorResponse(error.message);
+    }
+  });
+
+  ipcMain.handle('template-versions:restore', async (_, id: number) => {
+    try {
+      return await withTransaction(async () => {
+        const version = queryOne<TemplateVersion>(
+          'SELECT * FROM template_versions WHERE id = ?',
+          [id]
+        );
+        if (!version) {
+          throw new Error('Version not found');
+        }
+
+        const snapshot: TemplateSnapshot = JSON.parse(version.snapshot);
+
+        // Update template fields
+        run(
+          `UPDATE activity_templates SET name = ?, description = ?, category = ?, version = version + 1, updated_at = datetime('now') WHERE id = ?`,
+          [snapshot.template.name, snapshot.template.description, snapshot.template.category, version.activityTemplateId]
+        );
+
+        // Delete existing schedule items
+        run(
+          'DELETE FROM activity_template_schedule_items WHERE activity_template_id = ?',
+          [version.activityTemplateId]
+        );
+
+        // Re-insert schedule items from snapshot (first pass: no anchor refs)
+        const newIds: number[] = [];
+        for (const item of snapshot.scheduleItems) {
+          run(
+            `INSERT INTO activity_template_schedule_items
+             (activity_template_id, kind, name, anchor_type, anchor_ref_id, offset_days, fixed_date, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [version.activityTemplateId, item.kind, item.name, item.anchorType, null, item.offsetDays, item.fixedDate, item.sortOrder]
+          );
+          const newItem = queryOne<{ id: number }>('SELECT last_insert_rowid() as id')!;
+          newIds.push(newItem.id);
+        }
+
+        // Second pass: set anchor references using index mapping
+        for (let i = 0; i < snapshot.scheduleItems.length; i++) {
+          const item = snapshot.scheduleItems[i];
+          if (item.anchorRefIndex != null && item.anchorRefIndex >= 0 && item.anchorRefIndex < newIds.length) {
+            run(
+              'UPDATE activity_template_schedule_items SET anchor_ref_id = ? WHERE id = ?',
+              [newIds[item.anchorRefIndex], newIds[i]]
+            );
+          }
+        }
+
+        const template = queryOne<ActivityTemplate>(
+          'SELECT * FROM activity_templates WHERE id = ?',
+          [version.activityTemplateId]
+        );
+
+        createAuditEvent('template_version', id, 'restore', { templateId: version.activityTemplateId });
+        return createSuccessResponse(template);
+      });
+    } catch (error: any) {
+      return createErrorResponse(error.message);
+    }
+  });
+
+  ipcMain.handle('template-versions:delete', async (_, id: number) => {
+    try {
+      run('DELETE FROM template_versions WHERE id = ?', [id]);
+      createAuditEvent('template_version', id, 'delete');
       return createSuccessResponse({ id });
     } catch (error: any) {
       return createErrorResponse(error.message);
