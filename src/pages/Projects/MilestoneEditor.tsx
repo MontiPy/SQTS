@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useCreateMilestone, useUpdateMilestone, useDeleteMilestone, useMilestones } from '@/hooks/use-projects';
+import { useSettings } from '@/hooks/use-settings';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,21 +18,32 @@ interface MilestoneEditorProps {
 export default function MilestoneEditor({ isOpen, onClose, projectId, milestone }: MilestoneEditorProps) {
   const { success, error: showError } = useToast();
   const { data: milestones } = useMilestones(projectId);
+  const { data: settings } = useSettings();
   const createMilestone = useCreateMilestone();
   const updateMilestone = useUpdateMilestone();
   const deleteMilestone = useDeleteMilestone();
 
+  const categories = settings?.milestoneCategories || [];
+
   const [formData, setFormData] = useState({
     name: milestone?.name || '',
     date: milestone?.date || '',
+    category: milestone?.category || '',
   });
+
+  // Track whether the user is typing a custom category
+  const [customCategoryMode, setCustomCategoryMode] = useState(
+    () => !!(milestone?.category && !categories.includes(milestone.category))
+  );
 
   useEffect(() => {
     setFormData({
       name: milestone?.name || '',
       date: milestone?.date || '',
+      category: milestone?.category || '',
     });
-  }, [milestone]);
+    setCustomCategoryMode(!!(milestone?.category && !categories.includes(milestone.category)));
+  }, [milestone, categories]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,9 +59,9 @@ export default function MilestoneEditor({ isOpen, onClose, projectId, milestone 
           id: milestone.id,
           name: formData.name,
           date: formData.date || null,
+          category: formData.category.trim() || null,
         });
         success('Milestone updated successfully');
-        // Wait a tick for cache invalidation to propagate
         await new Promise(resolve => setTimeout(resolve, 100));
       } else {
         const maxSort = milestones?.reduce((max, m) => Math.max(max, m.sortOrder), 0) || 0;
@@ -57,10 +69,10 @@ export default function MilestoneEditor({ isOpen, onClose, projectId, milestone 
           projectId,
           name: formData.name,
           date: formData.date || null,
+          category: formData.category.trim() || null,
           sortOrder: maxSort + 1,
         });
         success('Milestone created successfully');
-        // Wait a tick for cache invalidation to propagate
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       onClose();
@@ -102,6 +114,53 @@ export default function MilestoneEditor({ isOpen, onClose, projectId, milestone 
                 placeholder="PA3, SOP, etc."
                 required
               />
+            </div>
+
+            <div>
+              <Label htmlFor="category">Category</Label>
+              {customCategoryMode ? (
+                <div className="flex gap-2">
+                  <Input
+                    id="category"
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    placeholder="Custom category name"
+                    autoFocus
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => {
+                      setCustomCategoryMode(false);
+                      setFormData({ ...formData, category: '' });
+                    }}
+                  >
+                    Back
+                  </Button>
+                </div>
+              ) : (
+                <select
+                  id="category"
+                  value={formData.category}
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      setCustomCategoryMode(true);
+                      setFormData({ ...formData, category: '' });
+                    } else {
+                      setFormData({ ...formData, category: e.target.value });
+                    }
+                  }}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">No category</option>
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                  <option value="__custom__">Custom...</option>
+                </select>
+              )}
             </div>
 
             <div>

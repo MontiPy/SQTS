@@ -14,6 +14,8 @@ import SettingsPage from './pages/Settings/SettingsPage';
 import HelpPage from './pages/Help/HelpPage';
 import PartsPage from './pages/Parts/PartsPage';
 import ImportExportPage from './pages/ImportExport/ImportExportPage';
+import ProjectTemplatesPage from './pages/ProjectTemplates/ProjectTemplatesPage';
+import ProjectTemplateDetail from './pages/ProjectTemplates/ProjectTemplateDetail';
 
 export default function App() {
   return (
@@ -26,6 +28,8 @@ export default function App() {
         <Route path="/projects/:id" element={<ProjectDetail />} />
         <Route path="/activity-templates" element={<ActivityLibraryPage />} />
         <Route path="/activity-templates/:id" element={<ActivityTemplateDetail />} />
+        <Route path="/project-templates" element={<ProjectTemplatesPage />} />
+        <Route path="/project-templates/:id" element={<ProjectTemplateDetail />} />
         <Route path="/tracking" element={<TrackingGrid />} />
         <Route path="/supplier-projects/:supplierId/:projectId" element={<SupplierProjectDetail />} />
         <Route path="/parts" element={<PartsPage />} />

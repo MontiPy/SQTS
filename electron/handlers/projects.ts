@@ -21,12 +21,14 @@ const createMilestoneSchema = z.object({
   projectId: z.number().int().positive(),
   name: z.string().min(1, 'Name is required'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD format').nullable().optional(),
+  category: z.string().nullable().optional(),
   sortOrder: z.number().int().optional(),
 });
 
 const updateMilestoneSchema = z.object({
   name: z.string().min(1).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD format').nullable().optional(),
+  category: z.string().nullable().optional(),
   sortOrder: z.number().int().optional(),
 });
 
@@ -141,9 +143,9 @@ export function registerProjectHandlers() {
       const validated = createMilestoneSchema.parse(params);
 
       run(
-        `INSERT INTO project_milestones (project_id, name, date, sort_order)
-         VALUES (?, ?, ?, ?)`,
-        [validated.projectId, validated.name, validated.date || null, validated.sortOrder || 0]
+        `INSERT INTO project_milestones (project_id, name, date, category, sort_order)
+         VALUES (?, ?, ?, ?, ?)`,
+        [validated.projectId, validated.name, validated.date || null, validated.category || null, validated.sortOrder || 0]
       );
 
       const milestone = queryOne<ProjectMilestone>('SELECT * FROM project_milestones WHERE id = last_insert_rowid()');
@@ -175,6 +177,10 @@ export function registerProjectHandlers() {
       if (validated.date !== undefined) {
         updates.push('date = ?');
         values.push(validated.date);
+      }
+      if (validated.category !== undefined) {
+        updates.push('category = ?');
+        values.push(validated.category);
       }
       if (validated.sortOrder !== undefined) {
         updates.push('sort_order = ?');

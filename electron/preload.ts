@@ -134,6 +134,16 @@ const api = {
     backup: () => ipcRenderer.invoke('import-export:backup'),
   },
 
+  // Project Templates
+  projectTemplates: {
+    list: () => ipcRenderer.invoke('project-templates:list'),
+    get: (id: number) => ipcRenderer.invoke('project-templates:get', id),
+    create: (params: any) => ipcRenderer.invoke('project-templates:create', params),
+    update: (id: number, params: any) => ipcRenderer.invoke('project-templates:update', id, params),
+    delete: (id: number) => ipcRenderer.invoke('project-templates:delete', id),
+    apply: (params: any) => ipcRenderer.invoke('project-templates:apply', params),
+  },
+
   // Settings
   settings: {
     getAll: () => ipcRenderer.invoke('settings:get-all'),

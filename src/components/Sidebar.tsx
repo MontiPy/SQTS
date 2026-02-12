@@ -6,6 +6,7 @@ import {
   FolderKanban,
   Grid3X3,
   ListChecks,
+  FileStack,
   Package,
   BarChart3,
   ArrowLeftRight,
@@ -22,6 +23,7 @@ const primaryNav = [
   { name: 'Projects', path: '/projects', icon: FolderKanban },
   { name: 'Tracking', path: '/tracking', icon: Grid3X3 },
   { name: 'Activity Templates', path: '/activity-templates', icon: ListChecks },
+  { name: 'Project Templates', path: '/project-templates', icon: FileStack },
   { name: 'Parts', path: '/parts', icon: Package },
   { name: 'Reports', path: '/reports', icon: BarChart3 },
 ];

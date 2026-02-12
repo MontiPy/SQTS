@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Trash2, Save } from 'lucide-react';
+import { Plus, Trash2, Save, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
 
 export default function SettingsPage() {
   const { data: settings, isLoading } = useSettings();
@@ -15,16 +15,21 @@ export default function SettingsPage() {
 
   const [nmrRanks, setNmrRanks] = useState<string[]>([]);
   const [paRanks, setPaRanks] = useState<string[]>([]);
+  const [milestoneCategories, setMilestoneCategories] = useState<string[]>([]);
+
   const [propagationSkipComplete, setPropagationSkipComplete] = useState(false);
   const [propagationSkipLocked, setPropagationSkipLocked] = useState(false);
   const [propagationSkipOverridden, setPropagationSkipOverridden] = useState(false);
   const [useBusinessDays, setUseBusinessDays] = useState(false);
   const [dateFormat, setDateFormat] = useState('YYYY-MM-DD');
+  const [showDevTools, setShowDevTools] = useState(false);
+  const [crashTest, setCrashTest] = useState(false);
 
   useEffect(() => {
     if (settings) {
       setNmrRanks(settings.nmrRanks || []);
       setPaRanks(settings.paRanks || []);
+      setMilestoneCategories(settings.milestoneCategories || []);
       setPropagationSkipComplete(settings.propagationSkipComplete || false);
       setPropagationSkipLocked(settings.propagationSkipLocked || false);
       setPropagationSkipOverridden(settings.propagationSkipOverridden || false);
@@ -40,6 +45,7 @@ export default function SettingsPage() {
       await Promise.all([
         updateSetting.mutateAsync({ key: 'nmrRanks', value: nmrRanks }),
         updateSetting.mutateAsync({ key: 'paRanks', value: paRanks }),
+        updateSetting.mutateAsync({ key: 'milestoneCategories', value: milestoneCategories }),
         updateSetting.mutateAsync({ key: 'propagationSkipComplete', value: propagationSkipComplete }),
         updateSetting.mutateAsync({ key: 'propagationSkipLocked', value: propagationSkipLocked }),
         updateSetting.mutateAsync({ key: 'propagationSkipOverridden', value: propagationSkipOverridden }),
@@ -72,6 +78,14 @@ export default function SettingsPage() {
 
   const removePaRank = (index: number) => {
     setPaRanks(paRanks.filter((_, i) => i !== index));
+  };
+
+  const addCategory = () => {
+    setMilestoneCategories([...milestoneCategories, '']);
+  };
+
+  const removeCategory = (index: number) => {
+    setMilestoneCategories(milestoneCategories.filter((_, i) => i !== index));
   };
 
   return (
@@ -137,6 +151,37 @@ export default function SettingsPage() {
               <Button variant="outline" onClick={addPaRank}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add PA Rank
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Milestone Categories</CardTitle>
+            <CardDescription>Define categories for grouping project milestones</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {milestoneCategories.map((cat, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <Input
+                    value={cat}
+                    onChange={(e) => {
+                      const updated = [...milestoneCategories];
+                      updated[index] = e.target.value;
+                      setMilestoneCategories(updated);
+                    }}
+                    placeholder="Category name"
+                  />
+                  <Button variant="ghost" size="icon" onClick={() => removeCategory(index)}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button variant="outline" onClick={addCategory}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Category
               </Button>
             </div>
           </CardContent>
@@ -218,6 +263,43 @@ export default function SettingsPage() {
             </select>
           </CardContent>
         </Card>
+
+        {/* Developer Section — collapsible */}
+        <div className="border-t border-border pt-4">
+          <button
+            onClick={() => setShowDevTools(!showDevTools)}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {showDevTools ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            Developer
+          </button>
+
+          {showDevTools && (
+            <Card className="mt-3">
+              <CardHeader>
+                <CardTitle className="text-base">Developer Tools</CardTitle>
+                <CardDescription>Diagnostic tools for testing and debugging</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {crashTest ? (() => { throw new Error('Test error — the Error Boundary caught this!'); })() : null}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Test Error Boundary</p>
+                    <p className="text-xs text-muted-foreground">Triggers a crash to verify the error boundary fallback UI</p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setCrashTest(true)}
+                  >
+                    <AlertTriangle className="w-3 h-3 mr-1" />
+                    Crash App
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );

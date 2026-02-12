@@ -74,6 +74,7 @@ export interface ProjectMilestone {
   projectId: number;
   name: string;
   date: string | null;
+  category: string | null;
   sortOrder: number;
   createdAt: string;
 }
@@ -217,6 +218,7 @@ export interface PropagationResult {
 export interface AppSettings {
   nmrRanks: string[];
   paRanks: string[];
+  milestoneCategories: string[];
   propagationSkipComplete: boolean;
   propagationSkipLocked: boolean;
   propagationSkipOverridden: boolean;
@@ -359,6 +361,38 @@ export interface DashboardStats {
   dueSoon: number;
   inProgress: number;
   recentlyUpdated: number;
+}
+
+// --- Project Templates ---
+
+export interface ProjectTemplate {
+  id: number;
+  name: string;
+  description: string | null;
+  createdAt: string;
+}
+
+export interface ProjectTemplateMilestone {
+  id: number;
+  projectTemplateId: number;
+  category: string | null;
+  name: string;
+  sortOrder: number;
+}
+
+export interface ProjectTemplateActivity {
+  id: number;
+  projectTemplateId: number;
+  activityTemplateId: number;
+  sortOrder: number;
+}
+
+export interface ProjectTemplateDetail extends ProjectTemplate {
+  milestones: ProjectTemplateMilestone[];
+  activities: (ProjectTemplateActivity & {
+    templateName: string;
+    templateCategory: string | null;
+  })[];
 }
 
 // --- Template Batch Operations ---

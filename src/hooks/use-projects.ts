@@ -111,6 +111,7 @@ interface CreateMilestoneParams {
   projectId: number;
   name: string;
   date: string | null;
+  category?: string | null;
   sortOrder: number;
 }
 
@@ -135,6 +136,7 @@ interface UpdateMilestoneParams {
   id: number;
   name?: string;
   date?: string | null;
+  category?: string | null;
   sortOrder?: number;
 }
 

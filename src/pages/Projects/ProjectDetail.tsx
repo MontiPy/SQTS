@@ -1,19 +1,20 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Plus, RefreshCw, Users } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Plus, RefreshCw, Users, FileStack } from 'lucide-react';
 import { useProject, useDeleteProject, useMilestones } from '@/hooks/use-projects';
+import { useSettings } from '@/hooks/use-settings';
 import type { ProjectMilestone } from '@shared/types';
 import { useToast } from '@/hooks/use-toast';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatDate } from '@/lib/format';
 import ProjectForm from './ProjectForm';
 import MilestoneEditor from './MilestoneEditor';
 import ProjectActivityManager from './ProjectActivityManager';
 import ApplyToSupplierDialog from './ApplyToSupplierDialog';
 import PropagationPreview from '@/components/PropagationPreview';
+import ApplyProjectTemplateDialog from './ApplyProjectTemplateDialog';
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +24,7 @@ export default function ProjectDetail() {
 
   const { data: project, isLoading } = useProject(projectId);
   const { data: milestones } = useMilestones(projectId);
+  const { data: settings } = useSettings();
   const deleteProject = useDeleteProject();
 
   const [showEditForm, setShowEditForm] = useState(false);
@@ -31,9 +33,41 @@ export default function ProjectDetail() {
   const [editingMilestone, setEditingMilestone] = useState<ProjectMilestone | undefined>();
   const [showApplyDialog, setShowApplyDialog] = useState(false);
   const [showPropagation, setShowPropagation] = useState(false);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
 
   if (isLoading) return <LoadingSpinner />;
   if (!project) return <div className="text-destructive">Project not found</div>;
+
+  const settingsCategories = settings?.milestoneCategories || [];
+
+  // Group milestones by their actual category value.
+  // Settings categories define the column order; any extra categories
+  // that exist on milestones get appended after.
+  const milestonesByCategory = new Map<string, ProjectMilestone[]>();
+
+  for (const m of milestones || []) {
+    const cat = m.category || 'Uncategorized';
+    if (!milestonesByCategory.has(cat)) {
+      milestonesByCategory.set(cat, []);
+    }
+    milestonesByCategory.get(cat)!.push(m);
+  }
+
+  // Build ordered list: settings categories first, then any extras, then Uncategorized last
+  const orderedCategories: [string, ProjectMilestone[]][] = [];
+  for (const cat of settingsCategories) {
+    if (milestonesByCategory.has(cat)) {
+      orderedCategories.push([cat, milestonesByCategory.get(cat)!]);
+    }
+  }
+  for (const [cat, items] of milestonesByCategory) {
+    if (cat !== 'Uncategorized' && !settingsCategories.includes(cat)) {
+      orderedCategories.push([cat, items]);
+    }
+  }
+  if (milestonesByCategory.has('Uncategorized')) {
+    orderedCategories.push(['Uncategorized', milestonesByCategory.get('Uncategorized')!]);
+  }
 
   const handleDelete = async () => {
     try {
@@ -70,53 +104,73 @@ export default function ProjectDetail() {
       </div>
 
       <div className="space-y-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Milestones</CardTitle>
-            <Button size="sm" onClick={() => {
-              setEditingMilestone(undefined);
-              setShowMilestoneEditor(true);
-            }}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Milestone
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {!milestones || milestones.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No milestones defined yet.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {milestones.map((milestone) => (
-                    <TableRow key={milestone.id}>
-                      <TableCell className="font-medium">{milestone.name}</TableCell>
-                      <TableCell>{formatDate(milestone.date)}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setEditingMilestone(milestone);
-                            setShowMilestoneEditor(true);
-                          }}
+        {/* Milestones Section */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Milestones</h2>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setShowTemplateDialog(true)}>
+                <FileStack className="w-4 h-4 mr-2" />
+                Apply Template
+              </Button>
+              <Button size="sm" onClick={() => {
+                setEditingMilestone(undefined);
+                setShowMilestoneEditor(true);
+              }}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Milestone
+              </Button>
+            </div>
+          </div>
+
+          {!milestones || milestones.length === 0 ? (
+            <Card>
+              <CardContent className="py-6">
+                <p className="text-sm text-muted-foreground">No milestones defined yet.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {orderedCategories.map(([category, categoryMilestones]) => (
+                <Card key={category}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">{category}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {categoryMilestones.map((milestone) => (
+                        <div
+                          key={milestone.id}
+                          className="flex items-center justify-between py-1"
                         >
-                          Edit
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                          <div>
+                            <span className="text-sm font-medium">{milestone.name}</span>
+                            {milestone.date && (
+                              <span className="text-xs text-muted-foreground ml-2">
+                                {formatDate(milestone.date)}
+                              </span>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7"
+                            onClick={() => {
+                              setEditingMilestone(milestone);
+                              setShowMilestoneEditor(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
 
         <ProjectActivityManager projectId={projectId} />
 
@@ -184,6 +238,14 @@ export default function ProjectDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {showTemplateDialog && (
+        <ApplyProjectTemplateDialog
+          projectId={projectId}
+          isOpen={showTemplateDialog}
+          onClose={() => setShowTemplateDialog(false)}
+        />
       )}
 
       {showDeleteConfirm && (

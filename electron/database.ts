@@ -445,8 +445,7 @@ CREATE INDEX idx_template_versions_template ON template_versions(activity_templa
   },
   {
     name: '003_parts_location_codes',
-    sql: `
--- Supplier Location Codes
+    sql: `-- Supplier Location Codes
 CREATE TABLE supplier_location_codes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   supplier_id INTEGER NOT NULL,
@@ -474,6 +473,51 @@ CREATE INDEX idx_parts_supplier_project ON parts(supplier_project_id);
 CREATE INDEX idx_parts_location_code ON parts(location_code_id);
 CREATE INDEX idx_parts_pa_rank ON parts(pa_rank);
 `,
+  },
+  {
+    name: '004_milestone_presets',
+    sql: `CREATE TABLE milestone_presets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  milestones TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);`,
+  },
+  {
+    name: '005_project_templates',
+    sql: `ALTER TABLE project_milestones ADD COLUMN category TEXT;
+
+CREATE TABLE project_templates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  description TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE project_template_milestones (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_template_id INTEGER NOT NULL,
+  category TEXT,
+  name TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (project_template_id) REFERENCES project_templates(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_ptm_template ON project_template_milestones(project_template_id);
+
+CREATE TABLE project_template_activities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_template_id INTEGER NOT NULL,
+  activity_template_id INTEGER NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (project_template_id) REFERENCES project_templates(id) ON DELETE CASCADE,
+  FOREIGN KEY (activity_template_id) REFERENCES activity_templates(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_pta_template ON project_template_activities(project_template_id);
+CREATE INDEX idx_pta_activity ON project_template_activities(activity_template_id);
+
+DROP TABLE IF EXISTS milestone_presets;
+
+INSERT OR IGNORE INTO settings (key, value) VALUES ('milestone_categories', '["PA","NMR","Build Event"]');`,
   },
 ];
 

@@ -10,7 +10,6 @@ interface Setting {
   updatedAt: string;
 }
 
-// Zod schemas
 const updateSettingSchema = z.object({
   key: z.string().min(1),
   value: z.union([z.string(), z.boolean(), z.array(z.string())]),
@@ -18,7 +17,7 @@ const updateSettingSchema = z.object({
 
 function parseSettingValue(key: string, value: string): string | boolean | string[] {
   // Parse value based on key type
-  if (key === 'nmr_ranks' || key === 'pa_ranks') {
+  if (key === 'nmr_ranks' || key === 'pa_ranks' || key === 'milestone_categories') {
     try {
       return JSON.parse(value);
     } catch {
@@ -57,6 +56,7 @@ export function registerSettingsHandlers() {
       const appSettings: AppSettings = {
         nmrRanks: parseSettingValue('nmr_ranks', settingsMap['nmr_ranks'] || '[]') as string[],
         paRanks: parseSettingValue('pa_ranks', settingsMap['pa_ranks'] || '[]') as string[],
+        milestoneCategories: parseSettingValue('milestone_categories', settingsMap['milestone_categories'] || '["PA","NMR","Build Event"]') as string[],
         propagationSkipComplete: parseSettingValue('propagation_skip_complete', settingsMap['propagation_skip_complete'] || 'true') as boolean,
         propagationSkipLocked: parseSettingValue('propagation_skip_locked', settingsMap['propagation_skip_locked'] || 'true') as boolean,
         propagationSkipOverridden: parseSettingValue('propagation_skip_overridden', settingsMap['propagation_skip_overridden'] || 'true') as boolean,
