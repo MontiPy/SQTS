@@ -37,29 +37,37 @@ export function registerPartsHandlers() {
   // Location Codes
   // ==========================================
 
-  ipcMain.handle('location-codes:list', async (_, supplierId: number) => {
+  ipcMain.handle('location-codes:list', async (_, supplierId: unknown) => {
     try {
+      const validId = z.number().int().positive().parse(supplierId);
       const codes = query<SupplierLocationCode>(
         'SELECT * FROM supplier_location_codes WHERE supplier_id = ? ORDER BY location_code',
-        [supplierId]
+        [validId]
       );
       return createSuccessResponse(codes);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
 
-  ipcMain.handle('location-codes:get', async (_, id: number) => {
+  ipcMain.handle('location-codes:get', async (_, id: unknown) => {
     try {
+      const validId = z.number().int().positive().parse(id);
       const code = queryOne<SupplierLocationCode>(
         'SELECT * FROM supplier_location_codes WHERE id = ?',
-        [id]
+        [validId]
       );
       if (!code) {
         return createErrorResponse('Location code not found');
       }
       return createSuccessResponse(code);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
@@ -127,12 +135,13 @@ export function registerPartsHandlers() {
     }
   });
 
-  ipcMain.handle('location-codes:delete', async (_, id: number) => {
+  ipcMain.handle('location-codes:delete', async (_, id: unknown) => {
     try {
+      const validId = z.number().int().positive().parse(id);
       // Check if any parts reference this location code
       const partCount = queryOne<{ count: number }>(
         'SELECT COUNT(*) as count FROM parts WHERE location_code_id = ?',
-        [id]
+        [validId]
       );
 
       if (partCount && partCount.count > 0) {
@@ -141,10 +150,13 @@ export function registerPartsHandlers() {
         );
       }
 
-      run('DELETE FROM supplier_location_codes WHERE id = ?', [id]);
-      createAuditEvent('location_code', id, 'delete');
-      return createSuccessResponse({ id });
+      run('DELETE FROM supplier_location_codes WHERE id = ?', [validId]);
+      createAuditEvent('location_code', validId, 'delete');
+      return createSuccessResponse({ id: validId });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
@@ -153,33 +165,41 @@ export function registerPartsHandlers() {
   // Parts
   // ==========================================
 
-  ipcMain.handle('parts:list', async (_, supplierProjectId: number) => {
+  ipcMain.handle('parts:list', async (_, supplierProjectId: unknown) => {
     try {
+      const validId = z.number().int().positive().parse(supplierProjectId);
       const parts = query<Part & { locationCode?: string; supplierNumber?: string }>(
         `SELECT p.*, slc.location_code AS locationCode, slc.supplier_number AS supplierNumber
          FROM parts p
          LEFT JOIN supplier_location_codes slc ON p.location_code_id = slc.id
          WHERE p.supplier_project_id = ?
          ORDER BY p.part_number`,
-        [supplierProjectId]
+        [validId]
       );
       return createSuccessResponse(parts);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
 
-  ipcMain.handle('parts:get', async (_, id: number) => {
+  ipcMain.handle('parts:get', async (_, id: unknown) => {
     try {
+      const validId = z.number().int().positive().parse(id);
       const part = queryOne<Part>(
         'SELECT * FROM parts WHERE id = ?',
-        [id]
+        [validId]
       );
       if (!part) {
         return createErrorResponse('Part not found');
       }
       return createSuccessResponse(part);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
@@ -256,12 +276,16 @@ export function registerPartsHandlers() {
     }
   });
 
-  ipcMain.handle('parts:delete', async (_, id: number) => {
+  ipcMain.handle('parts:delete', async (_, id: unknown) => {
     try {
-      run('DELETE FROM parts WHERE id = ?', [id]);
-      createAuditEvent('part', id, 'delete');
-      return createSuccessResponse({ id });
+      const validId = z.number().int().positive().parse(id);
+      run('DELETE FROM parts WHERE id = ?', [validId]);
+      createAuditEvent('part', validId, 'delete');
+      return createSuccessResponse({ id: validId });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });

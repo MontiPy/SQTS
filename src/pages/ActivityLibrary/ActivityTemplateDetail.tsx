@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Plus, Save, History } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Plus, Save, History, Send, RefreshCw } from 'lucide-react';
 import {
   useActivityTemplate,
   useDeleteActivityTemplate,
@@ -19,6 +19,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import ActivityTemplateForm from './ActivityTemplateForm';
 import SaveVersionDialog from './SaveVersionDialog';
 import VersionHistoryPanel from './VersionHistoryPanel';
+import ApplyToProjectsDialog from './ApplyToProjectsDialog';
+import SyncAllProjectsDialog from './SyncAllProjectsDialog';
 import type { ActivityTemplateScheduleItem, AnchorType, ScheduleItemKind } from '@shared/types';
 
 export default function ActivityTemplateDetail() {
@@ -40,6 +42,8 @@ export default function ActivityTemplateDetail() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSaveVersion, setShowSaveVersion] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showApplyToProjects, setShowApplyToProjects] = useState(false);
+  const [showSyncAllProjects, setShowSyncAllProjects] = useState(false);
   const [newItem, setNewItem] = useState<Partial<ActivityTemplateScheduleItem> | null>(null);
   const [newItemKey, setNewItemKey] = useState<number | null>(null);
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
@@ -186,6 +190,14 @@ export default function ActivityTemplateDetail() {
             {latestVersion && <> &middot; {latestVersion.name}</>}
           </p>
         </div>
+        <Button variant="outline" onClick={() => setShowApplyToProjects(true)}>
+          <Send className="w-4 h-4 mr-2" />
+          Apply to Projects
+        </Button>
+        <Button variant="outline" onClick={() => setShowSyncAllProjects(true)}>
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Sync All Projects
+        </Button>
         <Button variant="outline" onClick={() => setShowSaveVersion(true)}>
           <Save className="w-4 h-4 mr-2" />
           Save Version
@@ -238,7 +250,7 @@ export default function ActivityTemplateDetail() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {scheduleItems.map((item) => {
+                  {scheduleItems?.map((item) => {
                     const isEditing = editingItemId === item.id;
                     return (
                       <TableRow key={item.id}>
@@ -545,6 +557,14 @@ export default function ActivityTemplateDetail() {
               </Table>
             </div>
           )}
+          {!newItem && (
+            <div className="mt-4 flex justify-center">
+              <Button variant="outline" size="sm" onClick={handleAddItem}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Item
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -590,6 +610,21 @@ export default function ActivityTemplateDetail() {
           </div>
         </div>
       )}
+
+      <ApplyToProjectsDialog
+        templateId={templateId}
+        templateName={template.name}
+        isOpen={showApplyToProjects}
+        onClose={() => setShowApplyToProjects(false)}
+      />
+
+      <SyncAllProjectsDialog
+        templateId={templateId}
+        templateName={template.name}
+        templateVersion={template.version}
+        isOpen={showSyncAllProjects}
+        onClose={() => setShowSyncAllProjects(false)}
+      />
     </div>
   );
 }

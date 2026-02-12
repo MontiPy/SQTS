@@ -235,6 +235,7 @@ export interface ActivityTemplateScheduleItem {
   name: string;
   anchorType: AnchorType;
   anchorRefId: number | null;
+  anchorMilestoneName?: string | null;
   offsetDays: number | null;
   fixedDate: string | null;
   sortOrder: number;
@@ -358,4 +359,40 @@ export interface DashboardStats {
   dueSoon: number;
   inProgress: number;
   recentlyUpdated: number;
+}
+
+// --- Template Batch Operations ---
+
+export interface ProjectTemplateStatus {
+  projectId: number;
+  projectName: string;
+  hasActivity: boolean;
+  projectActivityId: number | null;
+  templateVersion: number | null;
+  isOutOfSync: boolean;
+}
+
+export interface BatchApplyResult {
+  projectId: number;
+  projectName: string;
+  success: boolean;
+  error?: string;
+}
+
+export interface TemplateOutOfSyncActivity {
+  projectActivityId: number;
+  projectId: number;
+  projectName: string;
+  templateVersion: number;
+  latestVersion: number;
+}
+
+export interface BatchSyncResult {
+  projectActivityId: number;
+  projectId: number;
+  projectName: string;
+  success: boolean;
+  fromVersion?: number;
+  toVersion?: number;
+  error?: string;
 }

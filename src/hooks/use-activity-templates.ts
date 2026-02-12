@@ -130,6 +130,7 @@ interface CreateTemplateScheduleItemParams {
   name: string;
   anchorType: string;
   anchorRefId?: number | null;
+  anchorMilestoneName?: string | null;
   offsetDays?: number | null;
   fixedDate?: string | null;
   sortOrder: number;
@@ -154,10 +155,12 @@ export function useCreateTemplateScheduleItem() {
 
 interface UpdateTemplateScheduleItemParams {
   id: number;
+  templateId?: number;
   kind?: 'MILESTONE' | 'TASK';
   name?: string;
   anchorType?: string;
   anchorRefId?: number | null;
+  anchorMilestoneName?: string | null;
   offsetDays?: number | null;
   fixedDate?: string | null;
   sortOrder?: number;

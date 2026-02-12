@@ -69,6 +69,22 @@ const updateApplicabilityClauseSchema = z.object({
   value: z.string().min(1).optional(),
 });
 
+const duplicateTemplateSchema = z.object({
+  id: z.number().int().positive(),
+  newName: z.string().min(1, 'New name is required'),
+});
+
+const reorderScheduleItemsSchema = z.array(z.object({
+  id: z.number().int().positive(),
+  sortOrder: z.number().int(),
+}));
+
+const saveTemplateVersionSchema = z.object({
+  activityTemplateId: z.number().int().positive(),
+  name: z.string().min(1, 'Version name is required'),
+  description: z.string().optional(),
+});
+
 export function registerActivityHandlers() {
   // Activity Templates
   ipcMain.handle('activity-templates:list', async () => {
@@ -87,14 +103,18 @@ export function registerActivityHandlers() {
     }
   });
 
-  ipcMain.handle('activity-templates:get', async (_, id: number) => {
+  ipcMain.handle('activity-templates:get', async (_, id: unknown) => {
     try {
-      const template = queryOne<ActivityTemplate>('SELECT * FROM activity_templates WHERE id = ?', [id]);
+      const validId = z.number().int().positive().parse(id);
+      const template = queryOne<ActivityTemplate>('SELECT * FROM activity_templates WHERE id = ?', [validId]);
       if (!template) {
         return createErrorResponse('Activity template not found');
       }
       return createSuccessResponse(template);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
@@ -161,21 +181,26 @@ export function registerActivityHandlers() {
     }
   });
 
-  ipcMain.handle('activity-templates:delete', async (_, id: number) => {
+  ipcMain.handle('activity-templates:delete', async (_, id: unknown) => {
     try {
-      run('DELETE FROM activity_templates WHERE id = ?', [id]);
-      createAuditEvent('activity_template', id, 'delete');
-      return createSuccessResponse({ id });
+      const validId = z.number().int().positive().parse(id);
+      run('DELETE FROM activity_templates WHERE id = ?', [validId]);
+      createAuditEvent('activity_template', validId, 'delete');
+      return createSuccessResponse({ id: validId });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
 
-  ipcMain.handle('activity-templates:duplicate', async (_, id: number, newName: string) => {
+  ipcMain.handle('activity-templates:duplicate', async (_, id: unknown, newName: unknown) => {
     try {
+      const validated = duplicateTemplateSchema.parse({ id, newName });
       return await withTransaction(async () => {
         // Get the original template
-        const original = queryOne<ActivityTemplate>('SELECT * FROM activity_templates WHERE id = ?', [id]);
+        const original = queryOne<ActivityTemplate>('SELECT * FROM activity_templates WHERE id = ?', [validated.id]);
         if (!original) {
           throw new Error('Template not found');
         }
@@ -184,14 +209,14 @@ export function registerActivityHandlers() {
         run(
           `INSERT INTO activity_templates (name, description, category)
            VALUES (?, ?, ?)`,
-          [newName, original.description, original.category]
+          [validated.newName, original.description, original.category]
         );
         const newTemplateId = queryOne<{ id: number }>('SELECT last_insert_rowid() as id')!.id;
 
         // Copy schedule items
         const items = query<ActivityTemplateScheduleItem>(
           'SELECT * FROM activity_template_schedule_items WHERE activity_template_id = ? ORDER BY sort_order',
-          [id]
+          [validated.id]
         );
 
         const idMap = new Map<number, number>(); // old ID -> new ID
@@ -222,7 +247,7 @@ export function registerActivityHandlers() {
         // Copy applicability rules and clauses
         const rule = queryOne<ActivityTemplateApplicabilityRule>(
           'SELECT * FROM activity_template_applicability_rules WHERE activity_template_id = ?',
-          [id]
+          [validated.id]
         );
 
         if (rule) {
@@ -248,38 +273,49 @@ export function registerActivityHandlers() {
         }
 
         const newTemplate = queryOne<ActivityTemplate>('SELECT * FROM activity_templates WHERE id = ?', [newTemplateId]);
-        createAuditEvent('activity_template', newTemplateId, 'duplicate', { originalId: id, newName });
+        createAuditEvent('activity_template', newTemplateId, 'duplicate', { originalId: validated.id, newName: validated.newName });
         return createSuccessResponse(newTemplate);
       });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
 
   // Template Schedule Items
-  ipcMain.handle('template-schedule-items:list', async (_, templateId: number) => {
+  ipcMain.handle('template-schedule-items:list', async (_, templateId: unknown) => {
     try {
+      const validId = z.number().int().positive().parse(templateId);
       const items = query<ActivityTemplateScheduleItem>(
         'SELECT * FROM activity_template_schedule_items WHERE activity_template_id = ? ORDER BY sort_order',
-        [templateId]
+        [validId]
       );
       return createSuccessResponse(items);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
 
-  ipcMain.handle('template-schedule-items:get', async (_, id: number) => {
+  ipcMain.handle('template-schedule-items:get', async (_, id: unknown) => {
     try {
+      const validId = z.number().int().positive().parse(id);
       const item = queryOne<ActivityTemplateScheduleItem>(
         'SELECT * FROM activity_template_schedule_items WHERE id = ?',
-        [id]
+        [validId]
       );
       if (!item) {
         return createErrorResponse('Schedule item not found');
       }
       return createSuccessResponse(item);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
@@ -390,14 +426,15 @@ export function registerActivityHandlers() {
     }
   });
 
-  ipcMain.handle('template-schedule-items:delete', async (_, id: number) => {
+  ipcMain.handle('template-schedule-items:delete', async (_, id: unknown) => {
     try {
+      const validId = z.number().int().positive().parse(id);
       const item = queryOne<ActivityTemplateScheduleItem>(
         'SELECT * FROM activity_template_schedule_items WHERE id = ?',
-        [id]
+        [validId]
       );
 
-      run('DELETE FROM activity_template_schedule_items WHERE id = ?', [id]);
+      run('DELETE FROM activity_template_schedule_items WHERE id = ?', [validId]);
 
       // Increment template version
       if (item) {
@@ -407,25 +444,29 @@ export function registerActivityHandlers() {
         );
       }
 
-      createAuditEvent('template_schedule_item', id, 'delete');
-      return createSuccessResponse({ id });
+      createAuditEvent('template_schedule_item', validId, 'delete');
+      return createSuccessResponse({ id: validId });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
 
-  ipcMain.handle('template-schedule-items:reorder', async (_, items: Array<{ id: number; sortOrder: number }>) => {
+  ipcMain.handle('template-schedule-items:reorder', async (_, items: unknown) => {
     try {
+      const validatedItems = reorderScheduleItemsSchema.parse(items);
       return await withTransaction(async () => {
-        for (const item of items) {
+        for (const item of validatedItems) {
           run('UPDATE activity_template_schedule_items SET sort_order = ? WHERE id = ?', [item.sortOrder, item.id]);
         }
 
         // Increment template version if items exist
-        if (items.length > 0) {
+        if (validatedItems.length > 0) {
           const firstItem = queryOne<ActivityTemplateScheduleItem>(
             'SELECT activity_template_id FROM activity_template_schedule_items WHERE id = ?',
-            [items[0].id]
+            [validatedItems[0].id]
           );
           if (firstItem) {
             run(
@@ -435,22 +476,29 @@ export function registerActivityHandlers() {
           }
         }
 
-        return createSuccessResponse({ updated: items.length });
+        return createSuccessResponse({ updated: validatedItems.length });
       });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
 
   // Applicability Rules
-  ipcMain.handle('applicability-rules:get', async (_, templateId: number) => {
+  ipcMain.handle('applicability-rules:get', async (_, templateId: unknown) => {
     try {
+      const validId = z.number().int().positive().parse(templateId);
       const rule = queryOne<ActivityTemplateApplicabilityRule>(
         'SELECT * FROM activity_template_applicability_rules WHERE activity_template_id = ?',
-        [templateId]
+        [validId]
       );
       return createSuccessResponse(rule);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
@@ -517,25 +565,33 @@ export function registerActivityHandlers() {
     }
   });
 
-  ipcMain.handle('applicability-rules:delete', async (_, id: number) => {
+  ipcMain.handle('applicability-rules:delete', async (_, id: unknown) => {
     try {
-      run('DELETE FROM activity_template_applicability_rules WHERE id = ?', [id]);
-      createAuditEvent('applicability_rule', id, 'delete');
-      return createSuccessResponse({ id });
+      const validId = z.number().int().positive().parse(id);
+      run('DELETE FROM activity_template_applicability_rules WHERE id = ?', [validId]);
+      createAuditEvent('applicability_rule', validId, 'delete');
+      return createSuccessResponse({ id: validId });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
 
   // Applicability Clauses
-  ipcMain.handle('applicability-clauses:list', async (_, ruleId: number) => {
+  ipcMain.handle('applicability-clauses:list', async (_, ruleId: unknown) => {
     try {
+      const validId = z.number().int().positive().parse(ruleId);
       const clauses = query<ActivityTemplateApplicabilityClause>(
         'SELECT * FROM activity_template_applicability_clauses WHERE rule_id = ?',
-        [ruleId]
+        [validId]
       );
       return createSuccessResponse(clauses);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
@@ -606,49 +662,62 @@ export function registerActivityHandlers() {
     }
   });
 
-  ipcMain.handle('applicability-clauses:delete', async (_, id: number) => {
+  ipcMain.handle('applicability-clauses:delete', async (_, id: unknown) => {
     try {
-      run('DELETE FROM activity_template_applicability_clauses WHERE id = ?', [id]);
-      createAuditEvent('applicability_clause', id, 'delete');
-      return createSuccessResponse({ id });
+      const validId = z.number().int().positive().parse(id);
+      run('DELETE FROM activity_template_applicability_clauses WHERE id = ?', [validId]);
+      createAuditEvent('applicability_clause', validId, 'delete');
+      return createSuccessResponse({ id: validId });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
 
   // Template Versions
-  ipcMain.handle('template-versions:list', async (_, templateId: number) => {
+  ipcMain.handle('template-versions:list', async (_, templateId: unknown) => {
     try {
+      const validId = z.number().int().positive().parse(templateId);
       const versions = query<TemplateVersion>(
         'SELECT * FROM template_versions WHERE activity_template_id = ? ORDER BY created_at DESC',
-        [templateId]
+        [validId]
       );
       return createSuccessResponse(versions);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
 
-  ipcMain.handle('template-versions:get', async (_, id: number) => {
+  ipcMain.handle('template-versions:get', async (_, id: unknown) => {
     try {
+      const validId = z.number().int().positive().parse(id);
       const version = queryOne<TemplateVersion>(
         'SELECT * FROM template_versions WHERE id = ?',
-        [id]
+        [validId]
       );
       if (!version) {
         return createErrorResponse('Version not found');
       }
       return createSuccessResponse(version);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
 
-  ipcMain.handle('template-versions:save', async (_, params: { activityTemplateId: number; name: string; description?: string }) => {
+  ipcMain.handle('template-versions:save', async (_, params: unknown) => {
     try {
+      const validated = saveTemplateVersionSchema.parse(params);
       const template = queryOne<ActivityTemplate>(
         'SELECT * FROM activity_templates WHERE id = ?',
-        [params.activityTemplateId]
+        [validated.activityTemplateId]
       );
       if (!template) {
         return createErrorResponse('Template not found');
@@ -656,7 +725,7 @@ export function registerActivityHandlers() {
 
       const items = query<ActivityTemplateScheduleItem>(
         'SELECT * FROM activity_template_schedule_items WHERE activity_template_id = ? ORDER BY sort_order',
-        [params.activityTemplateId]
+        [validated.activityTemplateId]
       );
 
       // Build ID-to-index map for portable anchor references
@@ -676,7 +745,7 @@ export function registerActivityHandlers() {
           name: item.name,
           anchorType: item.anchorType,
           anchorRefIndex: item.anchorRefId != null ? (idToIndex.get(item.anchorRefId) ?? null) : null,
-          anchorMilestoneName: (item as any).anchorMilestoneName || null,
+          anchorMilestoneName: item.anchorMilestoneName || null,
           offsetDays: item.offsetDays,
           fixedDate: item.fixedDate,
           sortOrder: item.sortOrder,
@@ -686,26 +755,30 @@ export function registerActivityHandlers() {
       run(
         `INSERT INTO template_versions (activity_template_id, name, description, version_number, snapshot)
          VALUES (?, ?, ?, ?, ?)`,
-        [params.activityTemplateId, params.name, params.description || null, template.version, JSON.stringify(snapshot)]
+        [validated.activityTemplateId, validated.name, validated.description || null, template.version, JSON.stringify(snapshot)]
       );
 
       const version = queryOne<TemplateVersion>(
         'SELECT * FROM template_versions WHERE id = last_insert_rowid()'
       );
 
-      createAuditEvent('template_version', version!.id, 'save', { templateId: params.activityTemplateId, name: params.name });
+      createAuditEvent('template_version', version!.id, 'save', { templateId: validated.activityTemplateId, name: validated.name });
       return createSuccessResponse(version);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
 
-  ipcMain.handle('template-versions:restore', async (_, id: number) => {
+  ipcMain.handle('template-versions:restore', async (_, id: unknown) => {
     try {
+      const validId = z.number().int().positive().parse(id);
       return await withTransaction(async () => {
         const version = queryOne<TemplateVersion>(
           'SELECT * FROM template_versions WHERE id = ?',
-          [id]
+          [validId]
         );
         if (!version) {
           throw new Error('Version not found');
@@ -754,20 +827,27 @@ export function registerActivityHandlers() {
           [version.activityTemplateId]
         );
 
-        createAuditEvent('template_version', id, 'restore', { templateId: version.activityTemplateId });
+        createAuditEvent('template_version', validId, 'restore', { templateId: version.activityTemplateId });
         return createSuccessResponse(template);
       });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
 
-  ipcMain.handle('template-versions:delete', async (_, id: number) => {
+  ipcMain.handle('template-versions:delete', async (_, id: unknown) => {
     try {
-      run('DELETE FROM template_versions WHERE id = ?', [id]);
-      createAuditEvent('template_version', id, 'delete');
-      return createSuccessResponse({ id });
+      const validId = z.number().int().positive().parse(id);
+      run('DELETE FROM template_versions WHERE id = ?', [validId]);
+      createAuditEvent('template_version', validId, 'delete');
+      return createSuccessResponse({ id: validId });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });

@@ -73,14 +73,18 @@ export function registerSettingsHandlers() {
   });
 
   // Get single setting
-  ipcMain.handle('settings:get', async (_, key: string) => {
+  ipcMain.handle('settings:get', async (_, key: unknown) => {
     try {
-      const setting = queryOne<Setting>('SELECT * FROM settings WHERE key = ?', [key]);
+      const validKey = z.string().min(1, 'Setting key is required').parse(key);
+      const setting = queryOne<Setting>('SELECT * FROM settings WHERE key = ?', [validKey]);
       if (!setting) {
         return createErrorResponse('Setting not found');
       }
       return createSuccessResponse(setting.value);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });

@@ -109,6 +109,14 @@ const api = {
     apply: (projectActivityId: number) => ipcRenderer.invoke('template-sync:apply', projectActivityId),
   },
 
+  // Template Batch Operations
+  templateBatch: {
+    getProjectStatus: (templateId: number) => ipcRenderer.invoke('template-batch:get-project-status', templateId),
+    applyToProjects: (params: { activityTemplateId: number; projectIds: number[] }) => ipcRenderer.invoke('template-batch:apply-to-projects', params),
+    checkOutOfSync: (templateId: number) => ipcRenderer.invoke('template-batch:check-out-of-sync', templateId),
+    syncAll: (params: { projectActivityIds: number[] }) => ipcRenderer.invoke('template-batch:sync-all', params),
+  },
+
   // Dashboard
   dashboard: {
     stats: () => ipcRenderer.invoke('dashboard:stats'),

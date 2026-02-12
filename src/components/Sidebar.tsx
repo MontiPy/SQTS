@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
 
 const primaryNav = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -103,6 +104,10 @@ export default function Sidebar() {
           })}
         </div>
       </nav>
+
+      <div className="border-t border-border p-2">
+        <ThemeToggle collapsed={collapsed} />
+      </div>
     </aside>
   );
 }

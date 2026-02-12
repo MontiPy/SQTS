@@ -18,8 +18,9 @@ const applyPropagationSchema = z.object({
 
 export function registerPropagationHandlers() {
   // Preview propagation changes
-  ipcMain.handle('propagation:preview', async (_, projectId: number) => {
+  ipcMain.handle('propagation:preview', async (_, projectId: unknown) => {
     try {
+      const validProjectId = z.number().int().positive().parse(projectId);
       // Get propagation policy from settings
       const skipCompleteSetting = queryOne<{ value: string }>(
         'SELECT value FROM settings WHERE key = ?',
@@ -51,7 +52,7 @@ export function registerPropagationHandlers() {
          JOIN project_activities pa ON psi.project_activity_id = pa.id
          WHERE pa.project_id = ?
          ORDER BY pa.sort_order, psi.sort_order`,
-        [projectId]
+        [validProjectId]
       );
 
       if (projectScheduleItems.length === 0) {
@@ -61,7 +62,7 @@ export function registerPropagationHandlers() {
       // Get project milestones
       const milestones = query<ProjectMilestone>(
         'SELECT * FROM project_milestones WHERE project_id = ?',
-        [projectId]
+        [validProjectId]
       );
       const milestoneDates = new Map(milestones.map(m => [m.id, m.date]));
 
@@ -76,7 +77,7 @@ export function registerPropagationHandlers() {
          JOIN suppliers s ON sp.supplier_id = s.id
          WHERE sp.project_id = ?
          ORDER BY s.name`,
-        [projectId]
+        [validProjectId]
       );
 
       if (supplierProjects.length === 0) {
@@ -119,7 +120,7 @@ export function registerPropagationHandlers() {
 
       // Compute preview
       const preview = computePropagationPreview(
-        projectId,
+        validProjectId,
         projectScheduleItems,
         milestoneDates,
         suppliersData,
@@ -128,6 +129,9 @@ export function registerPropagationHandlers() {
 
       return createSuccessResponse(preview);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });

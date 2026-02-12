@@ -1,7 +1,14 @@
 import { ipcMain } from 'electron';
+import { z } from 'zod';
 import { query } from '../database';
 import { createSuccessResponse, createErrorResponse } from './shared';
 import type { OverdueItem, DashboardStats, DueSoonItem, SupplierProgressRow, ProjectProgressRow } from '@shared/types';
+
+// Zod validation schemas
+const dashboardFilterSchema = z.object({
+  supplierId: z.number().int().positive().optional(),
+  projectId: z.number().int().positive().optional(),
+});
 
 export function registerDashboardHandlers() {
   // Get dashboard stats
@@ -57,11 +64,9 @@ export function registerDashboardHandlers() {
   });
 
   // Get overdue items list
-  ipcMain.handle('dashboard:overdue', async (_, params?: {
-    supplierId?: number;
-    projectId?: number;
-  }) => {
+  ipcMain.handle('dashboard:overdue', async (_, params?: unknown) => {
     try {
+      const validated = params ? dashboardFilterSchema.parse(params) : {};
       const today = new Date().toISOString().split('T')[0];
 
       let sql = `
@@ -91,14 +96,14 @@ export function registerDashboardHandlers() {
 
       const sqlParams: any[] = [today, today];
 
-      if (params?.supplierId) {
+      if (validated.supplierId) {
         sql += ' AND s.id = ?';
-        sqlParams.push(params.supplierId);
+        sqlParams.push(validated.supplierId);
       }
 
-      if (params?.projectId) {
+      if (validated.projectId) {
         sql += ' AND p.id = ?';
-        sqlParams.push(params.projectId);
+        sqlParams.push(validated.projectId);
       }
 
       sql += ' ORDER BY ssii.planned_date ASC, s.name ASC';
@@ -107,16 +112,17 @@ export function registerDashboardHandlers() {
 
       return createSuccessResponse(items);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
 
   // Get items due this week
-  ipcMain.handle('dashboard:due-soon', async (_, params?: {
-    supplierId?: number;
-    projectId?: number;
-  }) => {
+  ipcMain.handle('dashboard:due-soon', async (_, params?: unknown) => {
     try {
+      const validated = params ? dashboardFilterSchema.parse(params) : {};
       const today = new Date().toISOString().split('T')[0];
       const weekFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
@@ -148,14 +154,14 @@ export function registerDashboardHandlers() {
 
       const sqlParams: any[] = [today, today, weekFromNow];
 
-      if (params?.supplierId) {
+      if (validated.supplierId) {
         sql += ' AND s.id = ?';
-        sqlParams.push(params.supplierId);
+        sqlParams.push(validated.supplierId);
       }
 
-      if (params?.projectId) {
+      if (validated.projectId) {
         sql += ' AND p.id = ?';
-        sqlParams.push(params.projectId);
+        sqlParams.push(validated.projectId);
       }
 
       sql += ' ORDER BY ssii.planned_date ASC, s.name ASC';
@@ -164,6 +170,9 @@ export function registerDashboardHandlers() {
 
       return createSuccessResponse(items);
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return createErrorResponse(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
       return createErrorResponse(error.message);
     }
   });
