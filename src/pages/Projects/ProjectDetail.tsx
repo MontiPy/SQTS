@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit, Trash2, Plus, RefreshCw, Users } from 'lucide-react';
 import { useProject, useDeleteProject, useMilestones } from '@/hooks/use-projects';
+import type { ProjectMilestone } from '@shared/types';
 import { useToast } from '@/hooks/use-toast';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ export default function ProjectDetail() {
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMilestoneEditor, setShowMilestoneEditor] = useState(false);
+  const [editingMilestone, setEditingMilestone] = useState<ProjectMilestone | undefined>();
   const [showApplyDialog, setShowApplyDialog] = useState(false);
   const [showPropagation, setShowPropagation] = useState(false);
 
@@ -71,7 +73,10 @@ export default function ProjectDetail() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Milestones</CardTitle>
-            <Button size="sm" onClick={() => setShowMilestoneEditor(true)}>
+            <Button size="sm" onClick={() => {
+              setEditingMilestone(undefined);
+              setShowMilestoneEditor(true);
+            }}>
               <Plus className="w-4 h-4 mr-2" />
               Add Milestone
             </Button>
@@ -94,7 +99,16 @@ export default function ProjectDetail() {
                       <TableCell className="font-medium">{milestone.name}</TableCell>
                       <TableCell>{formatDate(milestone.date)}</TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="sm">Edit</Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEditingMilestone(milestone);
+                            setShowMilestoneEditor(true);
+                          }}
+                        >
+                          Edit
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -131,8 +145,12 @@ export default function ProjectDetail() {
       {showMilestoneEditor && (
         <MilestoneEditor
           isOpen={showMilestoneEditor}
-          onClose={() => setShowMilestoneEditor(false)}
+          onClose={() => {
+            setShowMilestoneEditor(false);
+            setEditingMilestone(undefined);
+          }}
           projectId={projectId}
+          milestone={editingMilestone}
         />
       )}
 

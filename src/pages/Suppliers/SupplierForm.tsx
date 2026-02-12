@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useCreateSupplier, useUpdateSupplier } from '@/hooks/use-suppliers';
-import { useSettings } from '@/hooks/use-settings';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,14 +15,12 @@ interface SupplierFormProps {
 
 export default function SupplierForm({ isOpen, onClose, supplier }: SupplierFormProps) {
   const { success, error: showError } = useToast();
-  const { data: settings } = useSettings();
   const createSupplier = useCreateSupplier();
   const updateSupplier = useUpdateSupplier();
 
   const [formData, setFormData] = useState({
     name: supplier?.name || '',
     notes: supplier?.notes || '',
-    nmrRank: supplier?.nmrRank || '',
     contactName: supplier?.contactName || '',
     contactEmail: supplier?.contactEmail || '',
     contactPhone: supplier?.contactPhone || '',
@@ -34,7 +31,6 @@ export default function SupplierForm({ isOpen, onClose, supplier }: SupplierForm
       setFormData({
         name: supplier.name,
         notes: supplier.notes || '',
-        nmrRank: supplier.nmrRank || '',
         contactName: supplier.contactName || '',
         contactEmail: supplier.contactEmail || '',
         contactPhone: supplier.contactPhone || '',
@@ -86,23 +82,6 @@ export default function SupplierForm({ isOpen, onClose, supplier }: SupplierForm
                 placeholder="Supplier name"
                 required
               />
-            </div>
-
-            <div>
-              <Label htmlFor="nmrRank">NMR Rank</Label>
-              <select
-                id="nmrRank"
-                value={formData.nmrRank}
-                onChange={(e) => setFormData({ ...formData, nmrRank: e.target.value })}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <option value="">Select rank...</option>
-                {settings?.nmrRanks?.map((rank) => (
-                  <option key={rank} value={rank}>
-                    {rank}
-                  </option>
-                ))}
-              </select>
             </div>
 
             <div>

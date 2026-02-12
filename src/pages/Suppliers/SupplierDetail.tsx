@@ -43,9 +43,6 @@ export default function SupplierDetail() {
         </Button>
         <div className="flex-1">
           <h1 className="text-3xl font-bold">{supplier.name}</h1>
-          {supplier.nmrRank && (
-            <p className="text-muted-foreground mt-1">NMR Rank: {supplier.nmrRank}</p>
-          )}
         </div>
         <Button variant="outline" onClick={() => setShowEditForm(true)}>
           <Edit className="w-4 h-4 mr-2" />

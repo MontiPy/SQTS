@@ -1,12 +1,13 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getDatabase, closeDatabase, saveDatabaseImmediately } from './database';
 import { registerHandlers } from './handlers';
 
-// ESM __dirname shim (Vite outputs ESM for the main process)
+// ESM __dirname shim
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+console.log('[SQTS] __dirname resolved to:', __dirname);
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -64,6 +65,16 @@ if (!gotLock) {
 
       // Register all IPC handlers
       registerHandlers();
+
+      // Register window focus handlers (for Electron keyboard event routing fix)
+      ipcMain.handle('window:refocus', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.blur();
+          mainWindow.focus();
+          return { success: true };
+        }
+        return { success: false };
+      });
 
       createWindow();
       console.log('[SQTS] Window created');

@@ -143,11 +143,12 @@ export function useUpdateMilestone() {
 
   return useMutation<ProjectMilestone, Error, UpdateMilestoneParams>({
     mutationFn: async (params) => {
-      const response: APIResponse<ProjectMilestone> = await window.sqts.milestones.update(params.id, params);
+      const response: APIResponse<any> = await window.sqts.milestones.update(params.id, params);
       if (!response.success || !response.data) {
         throw new Error(response.error || 'Failed to update milestone');
       }
-      return response.data;
+      // Handler returns { milestone, dateChanged, propagationRequired }
+      return response.data.milestone || response.data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['projects', data.projectId, 'milestones'] });

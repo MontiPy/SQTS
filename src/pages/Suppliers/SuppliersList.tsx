@@ -20,8 +20,7 @@ export default function SuppliersList() {
   if (error) return <div className="text-destructive">Error loading suppliers: {error.message}</div>;
 
   const filteredSuppliers = suppliers?.filter((supplier) =>
-    supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    supplier.nmrRank?.toLowerCase().includes(searchTerm.toLowerCase())
+    supplier.name.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
   return (
@@ -67,7 +66,6 @@ export default function SuppliersList() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>NMR Rank</TableHead>
                   <TableHead>Contact Name</TableHead>
                   <TableHead>Contact Email</TableHead>
                   <TableHead>Contact Phone</TableHead>
@@ -81,7 +79,6 @@ export default function SuppliersList() {
                     className="cursor-pointer"
                   >
                     <TableCell className="font-medium">{supplier.name}</TableCell>
-                    <TableCell>{supplier.nmrRank || '--'}</TableCell>
                     <TableCell>{supplier.contactName || '--'}</TableCell>
                     <TableCell>{supplier.contactEmail || '--'}</TableCell>
                     <TableCell>{supplier.contactPhone || '--'}</TableCell>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCreateProject, useUpdateProject } from '@/hooks/use-projects';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ interface ProjectFormProps {
 }
 
 export default function ProjectForm({ isOpen, onClose, project }: ProjectFormProps) {
+  const navigate = useNavigate();
   const { success, error: showError } = useToast();
   const createProject = useCreateProject();
   const updateProject = useUpdateProject();
@@ -50,11 +52,15 @@ export default function ProjectForm({ isOpen, onClose, project }: ProjectFormPro
       if (project) {
         await updateProject.mutateAsync({ id: project.id, ...formData });
         success('Project updated successfully');
+        onClose();
       } else {
-        await createProject.mutateAsync(formData);
+        const result = await createProject.mutateAsync(formData);
         success('Project created successfully');
+        onClose();
+        if (result?.id) {
+          navigate(`/projects/${result.id}`);
+        }
       }
-      onClose();
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to save project');
     }

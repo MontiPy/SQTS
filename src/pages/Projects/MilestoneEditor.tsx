@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCreateMilestone, useUpdateMilestone, useDeleteMilestone, useMilestones } from '@/hooks/use-projects';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,13 @@ export default function MilestoneEditor({ isOpen, onClose, projectId, milestone 
     date: milestone?.date || '',
   });
 
+  useEffect(() => {
+    setFormData({
+      name: milestone?.name || '',
+      date: milestone?.date || '',
+    });
+  }, [milestone]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -42,6 +49,8 @@ export default function MilestoneEditor({ isOpen, onClose, projectId, milestone 
           date: formData.date || null,
         });
         success('Milestone updated successfully');
+        // Wait a tick for cache invalidation to propagate
+        await new Promise(resolve => setTimeout(resolve, 100));
       } else {
         const maxSort = milestones?.reduce((max, m) => Math.max(max, m.sortOrder), 0) || 0;
         await createMilestone.mutateAsync({
@@ -51,6 +60,8 @@ export default function MilestoneEditor({ isOpen, onClose, projectId, milestone 
           sortOrder: maxSort + 1,
         });
         success('Milestone created successfully');
+        // Wait a tick for cache invalidation to propagate
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
       onClose();
     } catch (err) {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCreateActivityTemplate, useUpdateActivityTemplate } from '@/hooks/use-activity-templates';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ interface ActivityTemplateFormProps {
 }
 
 export default function ActivityTemplateForm({ isOpen, onClose, template }: ActivityTemplateFormProps) {
+  const navigate = useNavigate();
   const { success, error: showError } = useToast();
   const createTemplate = useCreateActivityTemplate();
   const updateTemplate = useUpdateActivityTemplate();
@@ -46,11 +48,15 @@ export default function ActivityTemplateForm({ isOpen, onClose, template }: Acti
       if (template) {
         await updateTemplate.mutateAsync({ id: template.id, ...formData });
         success('Template updated successfully');
+        onClose();
       } else {
-        await createTemplate.mutateAsync(formData);
+        const result = await createTemplate.mutateAsync(formData);
         success('Template created successfully');
+        onClose();
+        if (result?.id) {
+          navigate(`/activity-templates/${result.id}`);
+        }
       }
-      onClose();
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to save template');
     }
