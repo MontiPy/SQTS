@@ -8,8 +8,10 @@ import { Card } from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { formatDate } from '@/lib/format';
 import ProjectForm from './ProjectForm';
+import MilestoneDateGrid from './MilestoneDateGrid';
 
 export default function ProjectsList() {
   const navigate = useNavigate();
@@ -38,59 +40,72 @@ export default function ProjectsList() {
         </Button>
       </div>
 
-      {!projects || projects.length === 0 ? (
-        <Card className="p-0">
-          <EmptyState
-            icon={FolderKanban}
-            message="No projects yet"
-            description="Create your first project to start tracking supplier quality"
-            actionLabel="Create Project"
-            onAction={() => setShowCreateForm(true)}
-          />
-        </Card>
-      ) : (
-        <>
-          <div className="mb-4">
-            <div className="relative w-full max-w-sm">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input
-                type="text"
-                placeholder="Search projects..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
+      <Tabs defaultValue="projects">
+        <TabsList className="mb-4">
+          <TabsTrigger value="projects">Projects</TabsTrigger>
+          <TabsTrigger value="milestone-dates">Milestone Dates</TabsTrigger>
+        </TabsList>
 
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Version</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Last Updated</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredProjects.map((project) => (
-                  <TableRow
-                    key={project.id}
-                    onClick={() => navigate(`/projects/${project.id}`)}
-                    className="cursor-pointer"
-                  >
-                    <TableCell className="font-medium">{project.name}</TableCell>
-                    <TableCell>{project.version}</TableCell>
-                    <TableCell>{formatDate(project.createdAt)}</TableCell>
-                    <TableCell>{formatDate(project.updatedAt)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        </>
-      )}
+        <TabsContent value="projects">
+          {!projects || projects.length === 0 ? (
+            <Card className="p-0">
+              <EmptyState
+                icon={FolderKanban}
+                message="No projects yet"
+                description="Create your first project to start tracking supplier quality"
+                actionLabel="Create Project"
+                onAction={() => setShowCreateForm(true)}
+              />
+            </Card>
+          ) : (
+            <>
+              <div className="mb-4">
+                <div className="relative w-full max-w-sm">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                  <Input
+                    type="text"
+                    placeholder="Search projects..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <Card>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Version</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead>Last Updated</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredProjects.map((project) => (
+                      <TableRow
+                        key={project.id}
+                        onClick={() => navigate(`/projects/${project.id}`)}
+                        className="cursor-pointer"
+                      >
+                        <TableCell className="font-medium">{project.name}</TableCell>
+                        <TableCell>{project.version}</TableCell>
+                        <TableCell>{formatDate(project.createdAt)}</TableCell>
+                        <TableCell>{formatDate(project.updatedAt)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="milestone-dates">
+          <MilestoneDateGrid />
+        </TabsContent>
+      </Tabs>
 
       {showCreateForm && (
         <ProjectForm

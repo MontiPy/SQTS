@@ -128,6 +128,7 @@ export function useCreateMilestone() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['projects', data.projectId, 'milestones'] });
+      queryClient.invalidateQueries({ queryKey: ['milestone-grid'] });
     },
   });
 }
@@ -154,6 +155,7 @@ export function useUpdateMilestone() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['projects', data.projectId, 'milestones'] });
+      queryClient.invalidateQueries({ queryKey: ['milestone-grid'] });
     },
   });
 }
@@ -170,6 +172,7 @@ export function useDeleteMilestone() {
     },
     onSuccess: (_, { projectId }) => {
       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'milestones'] });
+      queryClient.invalidateQueries({ queryKey: ['milestone-grid'] });
     },
   });
 }

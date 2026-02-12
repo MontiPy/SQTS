@@ -168,6 +168,12 @@ const api = {
     delete: (id: number) => ipcRenderer.invoke('location-codes:delete', id),
   },
 
+  // Milestone Date Grid
+  milestoneGrid: {
+    get: () => ipcRenderer.invoke('milestone-grid:get'),
+    update: (params: any) => ipcRenderer.invoke('milestone-grid:update', params),
+  },
+
   // Window (Electron focus workaround)
   window: {
     refocus: () => ipcRenderer.invoke('window:refocus'),

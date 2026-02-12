@@ -430,3 +430,22 @@ export interface BatchSyncResult {
   toVersion?: number;
   error?: string;
 }
+
+// --- Milestone Date Grid ---
+
+export interface MilestoneDateGridRow {
+  category: string;
+  name: string;
+}
+
+export interface MilestoneDateGridCell {
+  milestoneId: number;
+  date: string | null;
+}
+
+export interface MilestoneDateGridData {
+  projects: { id: number; name: string; version: string }[];
+  rows: MilestoneDateGridRow[];
+  /** key = `${projectId}::${category}::${name}` */
+  cells: Record<string, MilestoneDateGridCell>;
+}

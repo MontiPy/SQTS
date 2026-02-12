@@ -119,6 +119,7 @@ export function useApplyProjectTemplate() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['projects', variables.projectId, 'milestones'] });
       queryClient.invalidateQueries({ queryKey: ['project-activities'] });
+      queryClient.invalidateQueries({ queryKey: ['milestone-grid'] });
     },
   });
 }

@@ -9,6 +9,7 @@ import { registerDashboardHandlers } from './dashboard';
 import { registerTemplateSyncHandlers } from './template-sync';
 import { registerPartsHandlers } from './parts';
 import { registerProjectTemplateHandlers } from './project-templates';
+import { registerMilestoneGridHandlers } from './milestone-grid';
 
 export function registerHandlers() {
   console.log('[SQTS] Registering all IPC handlers...');
@@ -34,5 +35,7 @@ export function registerHandlers() {
   console.log('[SQTS] Parts handlers registered');
   registerProjectTemplateHandlers();
   console.log('[SQTS] Project template handlers registered');
+  registerMilestoneGridHandlers();
+  console.log('[SQTS] Milestone grid handlers registered');
   console.log('[SQTS] All handlers registered successfully');
 }
