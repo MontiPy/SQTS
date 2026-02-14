@@ -114,21 +114,35 @@ export default function PropagationPreview({ projectId, onClose, onApplied }: Pr
 
   if (error) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <p className="text-sm text-destructive">Error loading preview: {error.message}</p>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-sm text-destructive">Error loading preview: {error.message}</p>
+          </CardContent>
+        </Card>
+        {onClose && (
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={onClose}>Close</Button>
+          </div>
+        )}
+      </div>
     );
   }
 
   if (!preview || (preview.willChange.length === 0 && preview.wontChange.length === 0)) {
     return (
-      <EmptyState
-        icon={CheckCircle2}
-        message="No propagation needed"
-        description="All supplier schedule items are already in sync with the project schedule."
-      />
+      <div className="space-y-4">
+        <EmptyState
+          icon={CheckCircle2}
+          message="No propagation needed"
+          description="All supplier schedule items are already in sync with the project schedule."
+        />
+        {onClose && (
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={onClose}>Close</Button>
+          </div>
+        )}
+      </div>
     );
   }
 

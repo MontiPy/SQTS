@@ -18,6 +18,8 @@ export default function MilestoneDateGrid() {
   const [hoveredCol, setHoveredCol] = useState<number | null>(null);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
   const [projectFilter, setProjectFilter] = useState('');
+  const tableRef = useRef<HTMLTableElement>(null);
+  const [catWidth, setCatWidth] = useState(100);
 
   const handleDateChange = useCallback((milestoneId: number, date: string | null, originalDate: string | null) => {
     setPendingChanges(prev => {
@@ -58,6 +60,12 @@ export default function MilestoneDateGrid() {
       p.version.toLowerCase().includes(term)
     );
   }, [data, projectFilter]);
+
+  useLayoutEffect(() => {
+    if (!tableRef.current) return;
+    const firstTh = tableRef.current.querySelector('thead th');
+    if (firstTh) setCatWidth(firstTh.getBoundingClientRect().width);
+  }, [filteredProjects, data]);
 
   if (isLoading) return <LoadingSpinner />;
 
@@ -127,15 +135,6 @@ export default function MilestoneDateGrid() {
   const cellExists = (projectId: number, category: string, name: string): boolean => {
     return `${projectId}::${category}::${name}` in data.cells;
   };
-
-  // Measure the Category column width so the Milestone column sticks right after it
-  const tableRef = useRef<HTMLTableElement>(null);
-  const [catWidth, setCatWidth] = useState(100);
-  useLayoutEffect(() => {
-    if (!tableRef.current) return;
-    const firstTh = tableRef.current.querySelector('thead th');
-    if (firstTh) setCatWidth(firstTh.getBoundingClientRect().width);
-  }, [filteredProjects, data]);
 
   // Crosshair highlight: column OR row hovered gets a subtle background
   const cellBg = (projectId: number, rowKey: string, base: string) => {

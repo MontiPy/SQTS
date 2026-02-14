@@ -61,6 +61,10 @@ export async function getDatabase(): Promise<SqlJsDatabase> {
   await runMigrations(db);
   console.log('[SQTS] Migrations complete');
 
+  // Clean up any orphaned rows from unreliable sql.js CASCADE
+  console.log('[SQTS] Running integrity check...');
+  cleanOrphanedRows(db);
+
   return db;
 }
 
@@ -132,6 +136,8 @@ export function commitTransaction(): void {
   transactionDepth--;
   if (transactionDepth === 0) {
     db.run('COMMIT');
+    // Re-enforce foreign keys after transaction (sql.js safety measure)
+    db.run('PRAGMA foreign_keys = ON');
     saveDatabaseImmediately();
   }
 }
@@ -141,6 +147,8 @@ export function rollbackTransaction(): void {
   transactionDepth--;
   if (transactionDepth === 0) {
     db.run('ROLLBACK');
+    // Re-enforce foreign keys after transaction (sql.js safety measure)
+    db.run('PRAGMA foreign_keys = ON');
     // Do NOT save after rollback - in-memory state is already correct
   }
 }
@@ -519,7 +527,273 @@ DROP TABLE IF EXISTS milestone_presets;
 
 INSERT OR IGNORE INTO settings (key, value) VALUES ('milestone_categories', '["PA","NMR","Build Event"]');`,
   },
+  {
+    name: '006_supplier_milestone_dates',
+    sql: `CREATE TABLE supplier_milestone_dates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  supplier_project_id INTEGER NOT NULL,
+  project_milestone_id INTEGER NOT NULL,
+  date TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (supplier_project_id) REFERENCES supplier_projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (project_milestone_id) REFERENCES project_milestones(id) ON DELETE CASCADE,
+  UNIQUE(supplier_project_id, project_milestone_id)
+);
+CREATE INDEX idx_smd_supplier_project ON supplier_milestone_dates(supplier_project_id);
+CREATE INDEX idx_smd_milestone ON supplier_milestone_dates(project_milestone_id);`,
+  },
+  {
+    name: '007_anchor_milestone_name',
+    sql: `ALTER TABLE activity_template_schedule_items ADD COLUMN anchor_milestone_name TEXT;`,
+  },
 ];
+
+// Integrity check: clean up orphaned rows left by unreliable sql.js CASCADE
+function cleanOrphanedRows(database: SqlJsDatabase): void {
+  // Orphaned supplier_schedule_item_instances (project_schedule_item deleted)
+  const orphanedByPSI = database.exec(
+    `SELECT COUNT(*) as c FROM supplier_schedule_item_instances
+     WHERE project_schedule_item_id NOT IN (SELECT id FROM project_schedule_items)`
+  );
+  const countPSI = orphanedByPSI[0]?.values[0]?.[0] as number || 0;
+  if (countPSI > 0) {
+    console.log(`[SQTS] Cleaning ${countPSI} orphaned supplier_schedule_item_instances (missing project_schedule_item)`);
+    database.run(
+      `DELETE FROM supplier_schedule_item_instances
+       WHERE project_schedule_item_id NOT IN (SELECT id FROM project_schedule_items)`
+    );
+  }
+
+  // Orphaned supplier_schedule_item_instances (supplier_activity_instance deleted)
+  const orphanedBySAI = database.exec(
+    `SELECT COUNT(*) as c FROM supplier_schedule_item_instances
+     WHERE supplier_activity_instance_id NOT IN (SELECT id FROM supplier_activity_instances)`
+  );
+  const countSAI = orphanedBySAI[0]?.values[0]?.[0] as number || 0;
+  if (countSAI > 0) {
+    console.log(`[SQTS] Cleaning ${countSAI} orphaned supplier_schedule_item_instances (missing supplier_activity_instance)`);
+    database.run(
+      `DELETE FROM supplier_schedule_item_instances
+       WHERE supplier_activity_instance_id NOT IN (SELECT id FROM supplier_activity_instances)`
+    );
+  }
+
+  // Orphaned supplier_activity_instances (supplier_project deleted)
+  const orphanedSAI = database.exec(
+    `SELECT COUNT(*) as c FROM supplier_activity_instances
+     WHERE supplier_project_id NOT IN (SELECT id FROM supplier_projects)`
+  );
+  const countSP = orphanedSAI[0]?.values[0]?.[0] as number || 0;
+  if (countSP > 0) {
+    console.log(`[SQTS] Cleaning ${countSP} orphaned supplier_activity_instances (missing supplier_project)`);
+    database.run(
+      `DELETE FROM supplier_activity_instances
+       WHERE supplier_project_id NOT IN (SELECT id FROM supplier_projects)`
+    );
+  }
+
+  // Orphaned supplier_activity_instances (project_activity deleted)
+  const orphanedSAIPA = database.exec(
+    `SELECT COUNT(*) as c FROM supplier_activity_instances
+     WHERE project_activity_id NOT IN (SELECT id FROM project_activities)`
+  );
+  const countPA = orphanedSAIPA[0]?.values[0]?.[0] as number || 0;
+  if (countPA > 0) {
+    console.log(`[SQTS] Cleaning ${countPA} orphaned supplier_activity_instances (missing project_activity)`);
+    database.run(
+      `DELETE FROM supplier_activity_instances
+       WHERE project_activity_id NOT IN (SELECT id FROM project_activities)`
+    );
+  }
+
+  // Orphaned supplier_milestone_dates
+  const orphanedSMD1 = database.exec(
+    `SELECT COUNT(*) as c FROM supplier_milestone_dates
+     WHERE supplier_project_id NOT IN (SELECT id FROM supplier_projects)`
+  );
+  const countSMD1 = orphanedSMD1[0]?.values[0]?.[0] as number || 0;
+  if (countSMD1 > 0) {
+    console.log(`[SQTS] Cleaning ${countSMD1} orphaned supplier_milestone_dates (missing supplier_project)`);
+    database.run(
+      `DELETE FROM supplier_milestone_dates
+       WHERE supplier_project_id NOT IN (SELECT id FROM supplier_projects)`
+    );
+  }
+
+  const orphanedSMD2 = database.exec(
+    `SELECT COUNT(*) as c FROM supplier_milestone_dates
+     WHERE project_milestone_id NOT IN (SELECT id FROM project_milestones)`
+  );
+  const countSMD2 = orphanedSMD2[0]?.values[0]?.[0] as number || 0;
+  if (countSMD2 > 0) {
+    console.log(`[SQTS] Cleaning ${countSMD2} orphaned supplier_milestone_dates (missing project_milestone)`);
+    database.run(
+      `DELETE FROM supplier_milestone_dates
+       WHERE project_milestone_id NOT IN (SELECT id FROM project_milestones)`
+    );
+  }
+
+  const totalCleaned = countPSI + countSAI + countSP + countPA + countSMD1 + countSMD2;
+  if (totalCleaned > 0) {
+    console.log(`[SQTS] Integrity check: cleaned ${totalCleaned} total orphaned rows`);
+  } else {
+    console.log('[SQTS] Integrity check: no orphaned rows found');
+  }
+
+  // Repair: supplier_projects missing supplier_activity_instances for project_activities
+  // (e.g., activity was added to project after supplier was applied)
+  const missingActivityInstances = database.exec(
+    `SELECT sp.id as supplier_project_id, pa.id as project_activity_id
+     FROM supplier_projects sp
+     JOIN project_activities pa ON pa.project_id = sp.project_id
+     WHERE NOT EXISTS (
+       SELECT 1 FROM supplier_activity_instances sai
+       WHERE sai.supplier_project_id = sp.id AND sai.project_activity_id = pa.id
+     )`
+  );
+
+  if (missingActivityInstances.length > 0 && missingActivityInstances[0].values.length > 0) {
+    const missingRows = missingActivityInstances[0].values;
+    console.log(`[SQTS] Repair: ${missingRows.length} missing supplier_activity_instances`);
+
+    for (const mRow of missingRows) {
+      const supplierProjectId = mRow[0] as number;
+      const projectActivityId = mRow[1] as number;
+
+      database.run(
+        `INSERT INTO supplier_activity_instances (supplier_project_id, project_activity_id, status, scope_override)
+         VALUES (?, ?, 'Not Started', NULL)`,
+        [supplierProjectId, projectActivityId]
+      );
+
+      // Get the new activity instance ID
+      const newIdResult = database.exec('SELECT last_insert_rowid() as id');
+      const newActivityInstanceId = newIdResult[0]?.values[0]?.[0] as number;
+
+      // Create schedule item instances for this activity
+      const schedItems = database.exec(
+        `SELECT id FROM project_schedule_items WHERE project_activity_id = ? ORDER BY sort_order`,
+        [projectActivityId]
+      );
+
+      if (schedItems.length > 0) {
+        for (const siRow of schedItems[0].values) {
+          const projectScheduleItemId = siRow[0] as number;
+          database.run(
+            `INSERT OR IGNORE INTO supplier_schedule_item_instances
+             (supplier_activity_instance_id, project_schedule_item_id, planned_date, actual_date, status, planned_date_override, scope_override, locked, notes)
+             VALUES (?, ?, NULL, NULL, 'Not Started', 0, NULL, 0, NULL)`,
+            [newActivityInstanceId, projectScheduleItemId]
+          );
+        }
+      }
+
+      console.log(`[SQTS] Repair: created activity_instance for supplier_project ${supplierProjectId}, project_activity ${projectActivityId}`);
+    }
+  }
+
+  // Repair: project_schedule_items with PROJECT_MILESTONE anchor but null project_milestone_id
+  // Attempt to resolve using the template item's anchor_milestone_name, falling back to item's own name
+  const unlinkedMilestoneItems = database.exec(
+    `SELECT psi.id, psi.project_activity_id, psi.template_item_id,
+            atsi.anchor_milestone_name, pa.project_id, psi.name
+     FROM project_schedule_items psi
+     JOIN project_activities pa ON psi.project_activity_id = pa.id
+     LEFT JOIN activity_template_schedule_items atsi ON psi.template_item_id = atsi.id
+     WHERE psi.anchor_type = 'PROJECT_MILESTONE'
+       AND psi.project_milestone_id IS NULL`
+  );
+
+  if (unlinkedMilestoneItems.length > 0 && unlinkedMilestoneItems[0].values.length > 0) {
+    const rows = unlinkedMilestoneItems[0].values;
+    let repaired = 0;
+    for (const row of rows) {
+      const psiId = row[0] as number;
+      const projectId = row[4] as number;
+      // Use anchor_milestone_name if available, otherwise fall back to item's own name
+      const milestoneName = (row[3] as string | null) || (row[5] as string);
+
+      if (!milestoneName) continue;
+
+      // Try matching by name, then category, then category-prefix
+      // e.g., item "PA 2" matches milestone with name "PA 2", or category "PA 2", or category "PA" (prefix)
+      let milestone = database.exec(
+        `SELECT id FROM project_milestones
+         WHERE project_id = ? AND (name = ? OR category = ?)
+         ORDER BY CASE WHEN name = ? THEN 0 ELSE 1 END, sort_order
+         LIMIT 1`,
+        [projectId, milestoneName, milestoneName, milestoneName]
+      );
+
+      // Category-prefix fallback: "PA 2" starts with category "PA"
+      if (!(milestone.length > 0 && milestone[0].values.length > 0)) {
+        milestone = database.exec(
+          `SELECT id FROM project_milestones
+           WHERE project_id = ? AND category IS NOT NULL AND ? LIKE (category || ' %')
+           ORDER BY sort_order
+           LIMIT 1`,
+          [projectId, milestoneName]
+        );
+      }
+
+      if (milestone.length > 0 && milestone[0].values.length > 0) {
+        const milestoneId = milestone[0].values[0][0] as number;
+        database.run(
+          'UPDATE project_schedule_items SET project_milestone_id = ? WHERE id = ?',
+          [milestoneId, psiId]
+        );
+        repaired++;
+      }
+    }
+    if (repaired > 0) {
+      console.log(`[SQTS] Repair: linked ${repaired} PROJECT_MILESTONE schedule items to their milestones`);
+    }
+  }
+
+  // Repair: supplier_activity_instances that have 0 supplier_schedule_item_instances
+  // but their project_activity has project_schedule_items (i.e., instances were never created)
+  const emptyActivityInstances = database.exec(
+    `SELECT sai.id, sai.project_activity_id
+     FROM supplier_activity_instances sai
+     WHERE NOT EXISTS (
+       SELECT 1 FROM supplier_schedule_item_instances ssii
+       WHERE ssii.supplier_activity_instance_id = sai.id
+     )
+     AND EXISTS (
+       SELECT 1 FROM project_schedule_items psi
+       WHERE psi.project_activity_id = sai.project_activity_id
+     )`
+  );
+
+  if (emptyActivityInstances.length > 0 && emptyActivityInstances[0].values.length > 0) {
+    const rows = emptyActivityInstances[0].values;
+    console.log(`[SQTS] Repair: ${rows.length} supplier_activity_instances missing schedule item instances`);
+
+    for (const row of rows) {
+      const activityInstanceId = row[0] as number;
+      const projectActivityId = row[1] as number;
+
+      // Get the project_schedule_items for this activity
+      const itemsResult = database.exec(
+        `SELECT id FROM project_schedule_items WHERE project_activity_id = ? ORDER BY sort_order`,
+        [projectActivityId]
+      );
+
+      if (itemsResult.length > 0) {
+        for (const itemRow of itemsResult[0].values) {
+          const projectScheduleItemId = itemRow[0] as number;
+          database.run(
+            `INSERT OR IGNORE INTO supplier_schedule_item_instances
+             (supplier_activity_instance_id, project_schedule_item_id, planned_date, actual_date, status, planned_date_override, scope_override, locked, notes)
+             VALUES (?, ?, NULL, NULL, 'Not Started', 0, NULL, 0, NULL)`,
+            [activityInstanceId, projectScheduleItemId]
+          );
+        }
+        console.log(`[SQTS] Repair: created ${itemsResult[0].values.length} instances for activity_instance ${activityInstanceId}`);
+      }
+    }
+  }
+}
 
 // Migration runner
 async function runMigrations(database: SqlJsDatabase): Promise<void> {

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Trash2, Save, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
+import AuditLogSection from './AuditLogSection';
 
 export default function SettingsPage() {
   const { data: settings, isLoading } = useSettings();
@@ -263,6 +264,8 @@ export default function SettingsPage() {
             </select>
           </CardContent>
         </Card>
+
+        <AuditLogSection />
 
         {/* Developer Section — collapsible */}
         <div className="border-t border-border pt-4">

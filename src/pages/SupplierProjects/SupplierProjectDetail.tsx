@@ -60,6 +60,9 @@ function isOverdue(instance: SupplierScheduleItemInstance): boolean {
 
 interface ScheduleInstanceWithName extends SupplierScheduleItemInstance {
   itemName: string;
+  kind: 'MILESTONE' | 'TASK';
+  anchorType: string;
+  anchorRefId: number | null;
 }
 
 interface ActivityGroup {
@@ -94,6 +97,7 @@ export default function SupplierProjectDetail() {
   const [expandedActivities, setExpandedActivities] = useState<Set<number>>(
     new Set()
   );
+  const [expandedMilestones, setExpandedMilestones] = useState<Set<number>>(new Set());
   const [selectedInstances, setSelectedInstances] = useState<Set<number>>(new Set());
   const [batchStatus, setBatchStatus] = useState<ActivityStatus>('Complete');
   const [batchDate, setBatchDate] = useState<string>(
@@ -117,6 +121,9 @@ export default function SupplierProjectDetail() {
       scheduleInstances: (a.scheduleInstances || []).map((si: any) => ({
         ...si,
         itemName: si.itemName || `Item #${si.projectScheduleItemId}`,
+        kind: si.kind || 'TASK',
+        anchorType: si.anchorType || 'FIXED_DATE',
+        anchorRefId: si.anchorRefId ?? null,
       })),
     }));
   }, [detailData]);
@@ -148,6 +155,46 @@ export default function SupplierProjectDetail() {
       }
       return next;
     });
+  }
+
+  function toggleMilestone(projectScheduleItemId: number) {
+    setExpandedMilestones((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectScheduleItemId)) {
+        next.delete(projectScheduleItemId);
+      } else {
+        next.add(projectScheduleItemId);
+      }
+      return next;
+    });
+  }
+
+  // Build milestone groups: milestones as headers with their child tasks
+  function buildMilestoneGroups(instances: ScheduleInstanceWithName[]) {
+    const milestones: ScheduleInstanceWithName[] = [];
+    const tasksByMilestone = new Map<number, ScheduleInstanceWithName[]>();
+    const ungrouped: ScheduleInstanceWithName[] = [];
+
+    // First pass: identify milestones
+    for (const inst of instances) {
+      if (inst.kind === 'MILESTONE') {
+        milestones.push(inst);
+        tasksByMilestone.set(inst.projectScheduleItemId, []);
+      }
+    }
+
+    // Second pass: assign tasks to their parent milestone
+    for (const inst of instances) {
+      if (inst.kind === 'TASK') {
+        if (inst.anchorType === 'SCHEDULE_ITEM' && inst.anchorRefId && tasksByMilestone.has(inst.anchorRefId)) {
+          tasksByMilestone.get(inst.anchorRefId)!.push(inst);
+        } else {
+          ungrouped.push(inst);
+        }
+      }
+    }
+
+    return { milestones, tasksByMilestone, ungrouped };
   }
 
   function toggleInstance(id: number) {
@@ -477,211 +524,330 @@ export default function SupplierProjectDetail() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {activity.scheduleInstances.map((inst) => {
-                          const overdueItem = isOverdue(inst);
-                          return (
-                            <TableRow
-                              key={inst.id}
-                              className={overdueItem ? 'bg-amber-50' : undefined}
-                            >
-                              {/* Checkbox */}
-                              <TableCell>
-                                <button
-                                  onClick={() => toggleInstance(inst.id)}
-                                  className="p-0.5"
-                                >
-                                  {selectedInstances.has(inst.id) ? (
-                                    <CheckSquare className="w-4 h-4 text-primary" />
-                                  ) : (
-                                    <Square className="w-4 h-4 text-muted-foreground" />
-                                  )}
-                                </button>
-                              </TableCell>
+                        {(() => {
+                          const { milestones, tasksByMilestone, ungrouped } = buildMilestoneGroups(activity.scheduleInstances);
+                          const rows: React.ReactNode[] = [];
 
-                              {/* Item name */}
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium">{inst.itemName}</span>
-                                  {overdueItem && (
-                                    <Clock className="w-3.5 h-3.5 text-amber-600" />
-                                  )}
-                                  {inst.locked && (
-                                    <Lock className="w-3.5 h-3.5 text-muted-foreground" />
-                                  )}
-                                  {inst.plannedDateOverride && (
-                                    <Pencil className="w-3.5 h-3.5 text-blue-500" />
-                                  )}
-                                  {inst.scopeOverride === 'NOT_REQUIRED' && (
-                                    <ShieldOff className="w-3.5 h-3.5 text-gray-400" />
-                                  )}
-                                </div>
-                              </TableCell>
+                          // Render milestone groups
+                          for (const ms of milestones) {
+                            const childTasks = tasksByMilestone.get(ms.projectScheduleItemId) || [];
+                            const msExpanded = expandedMilestones.has(ms.projectScheduleItemId);
+                            const msOverdue = isOverdue(ms);
+                            const childComplete = childTasks.filter((t) => t.status === 'Complete').length;
 
-                              {/* Status dropdown */}
-                              <TableCell>
-                                <select
-                                  className="h-8 rounded border border-input bg-background px-2 text-xs"
-                                  value={inst.status}
-                                  onChange={(e) =>
-                                    handleStatusChange(
-                                      inst.id,
-                                      e.target.value as ActivityStatus
-                                    )
-                                  }
-                                >
-                                  {STATUS_OPTIONS.map((s) => (
-                                    <option key={s} value={s}>
-                                      {s}
-                                    </option>
-                                  ))}
-                                </select>
-                              </TableCell>
-
-                              {/* Planned Date */}
-                              <TableCell>
-                                {overrideDateId === inst.id ? (
-                                  <div className="flex items-center gap-1">
-                                    <input
-                                      type="date"
-                                      className="h-8 rounded border border-input bg-background px-2 text-xs"
-                                      value={overrideDateValue}
-                                      onChange={(e) =>
-                                        setOverrideDateValue(e.target.value)
-                                      }
-                                    />
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 px-2"
-                                      onClick={() => handleSaveOverride(inst.id)}
-                                    >
-                                      Save
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 px-2"
-                                      onClick={() => setOverrideDateId(null)}
-                                    >
-                                      Cancel
-                                    </Button>
-                                  </div>
-                                ) : (
-                                  <span
-                                    className={
-                                      overdueItem
-                                        ? 'text-amber-600 font-medium'
-                                        : undefined
-                                    }
-                                  >
-                                    {formatDate(inst.plannedDate)}
-                                    {inst.plannedDateOverride && (
-                                      <span className="text-xs text-blue-500 ml-1">
-                                        (override)
-                                      </span>
-                                    )}
-                                  </span>
-                                )}
-                              </TableCell>
-
-                              {/* Actual Date */}
-                              <TableCell>{formatDate(inst.actualDate)}</TableCell>
-
-                              {/* Notes */}
-                              <TableCell>
-                                {editingNotesId === inst.id ? (
-                                  <div className="flex items-center gap-1">
-                                    <input
-                                      type="text"
-                                      className="h-8 rounded border border-input bg-background px-2 text-xs flex-1"
-                                      value={notesText}
-                                      onChange={(e) => setNotesText(e.target.value)}
-                                      placeholder="Add notes..."
-                                      autoFocus
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter')
-                                          handleSaveNotes(inst.id);
-                                        if (e.key === 'Escape')
-                                          setEditingNotesId(null);
-                                      }}
-                                    />
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 px-2"
-                                      onClick={() => handleSaveNotes(inst.id)}
-                                    >
-                                      Save
-                                    </Button>
-                                  </div>
-                                ) : (
+                            // Milestone header row
+                            rows.push(
+                              <TableRow
+                                key={ms.id}
+                                className={msOverdue ? 'bg-amber-50' : 'bg-muted/40 border-t-2'}
+                              >
+                                <TableCell>
                                   <button
-                                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 max-w-[150px] truncate"
-                                    onClick={() => {
-                                      setEditingNotesId(inst.id);
-                                      setNotesText(inst.notes || '');
-                                    }}
+                                    onClick={() => toggleInstance(ms.id)}
+                                    className="p-0.5"
                                   >
-                                    {inst.notes ? (
-                                      <span className="truncate">{inst.notes}</span>
+                                    {selectedInstances.has(ms.id) ? (
+                                      <CheckSquare className="w-4 h-4 text-primary" />
                                     ) : (
-                                      <>
-                                        <MessageSquare className="w-3 h-3" />
-                                        Add note
-                                      </>
+                                      <Square className="w-4 h-4 text-muted-foreground" />
                                     )}
                                   </button>
-                                )}
-                              </TableCell>
-
-                              {/* Actions */}
-                              <TableCell>
-                                <div className="flex items-center gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7"
-                                    title={inst.locked ? 'Unlock' : 'Lock'}
-                                    onClick={() =>
-                                      handleToggleLock(inst.id, inst.locked)
-                                    }
-                                  >
-                                    {inst.locked ? (
-                                      <Lock className="w-3.5 h-3.5" />
-                                    ) : (
-                                      <LockOpen className="w-3.5 h-3.5" />
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => toggleMilestone(ms.projectScheduleItemId)}
+                                      className="p-0.5 hover:bg-muted rounded"
+                                    >
+                                      {msExpanded ? (
+                                        <ChevronDown className="w-4 h-4" />
+                                      ) : (
+                                        <ChevronRight className="w-4 h-4" />
+                                      )}
+                                    </button>
+                                    <span className="font-semibold">{ms.itemName}</span>
+                                    <span className="text-[10px] uppercase px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                                      Milestone
+                                    </span>
+                                    {childTasks.length > 0 && (
+                                      <span className="text-xs text-muted-foreground">
+                                        [{childComplete}/{childTasks.length}]
+                                      </span>
                                     )}
-                                  </Button>
-
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7"
-                                    title={
-                                      inst.plannedDateOverride
-                                        ? 'Remove date override'
-                                        : 'Override date'
-                                    }
-                                    onClick={() =>
-                                      handleToggleOverride(
-                                        inst.id,
-                                        inst.plannedDateOverride
-                                      )
-                                    }
+                                    {msOverdue && <Clock className="w-3.5 h-3.5 text-amber-600" />}
+                                    {!!ms.locked && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
+                                    {!!ms.plannedDateOverride && <Pencil className="w-3.5 h-3.5 text-blue-500" />}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <select
+                                    className="h-8 rounded border border-input bg-background px-2 text-xs"
+                                    value={ms.status}
+                                    onChange={(e) => handleStatusChange(ms.id, e.target.value as ActivityStatus)}
                                   >
-                                    <Pencil
-                                      className={`w-3.5 h-3.5 ${
-                                        inst.plannedDateOverride
-                                          ? 'text-blue-500'
-                                          : ''
-                                      }`}
-                                    />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
+                                    {STATUS_OPTIONS.map((s) => (
+                                      <option key={s} value={s}>{s}</option>
+                                    ))}
+                                  </select>
+                                </TableCell>
+                                <TableCell>
+                                  {overrideDateId === ms.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="date"
+                                        className="h-8 rounded border border-input bg-background px-2 text-xs"
+                                        value={overrideDateValue}
+                                        onChange={(e) => setOverrideDateValue(e.target.value)}
+                                      />
+                                      <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => handleSaveOverride(ms.id)}>Save</Button>
+                                      <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setOverrideDateId(null)}>Cancel</Button>
+                                    </div>
+                                  ) : (
+                                    <span className={msOverdue ? 'text-amber-600 font-medium' : undefined}>
+                                      {formatDate(ms.plannedDate)}
+                                      {!!ms.plannedDateOverride && (
+                                        <span className="text-xs text-blue-500 ml-1">(override)</span>
+                                      )}
+                                    </span>
+                                  )}
+                                </TableCell>
+                                <TableCell>{formatDate(ms.actualDate)}</TableCell>
+                                <TableCell>
+                                  {editingNotesId === ms.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="text"
+                                        className="h-8 rounded border border-input bg-background px-2 text-xs flex-1"
+                                        value={notesText}
+                                        onChange={(e) => setNotesText(e.target.value)}
+                                        placeholder="Add notes..."
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') handleSaveNotes(ms.id);
+                                          if (e.key === 'Escape') setEditingNotesId(null);
+                                        }}
+                                      />
+                                      <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => handleSaveNotes(ms.id)}>Save</Button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 max-w-[150px] truncate"
+                                      onClick={() => { setEditingNotesId(ms.id); setNotesText(ms.notes || ''); }}
+                                    >
+                                      {ms.notes ? <span className="truncate">{ms.notes}</span> : <><MessageSquare className="w-3 h-3" />Add note</>}
+                                    </button>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-1">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" title={ms.locked ? 'Unlock' : 'Lock'} onClick={() => handleToggleLock(ms.id, ms.locked)}>
+                                      {ms.locked ? <Lock className="w-3.5 h-3.5" /> : <LockOpen className="w-3.5 h-3.5" />}
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" title={ms.plannedDateOverride ? 'Remove date override' : 'Override date'} onClick={() => handleToggleOverride(ms.id, ms.plannedDateOverride)}>
+                                      <Pencil className={`w-3.5 h-3.5 ${ms.plannedDateOverride ? 'text-blue-500' : ''}`} />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+
+                            // Child task rows (only when expanded)
+                            if (msExpanded) {
+                              for (const task of childTasks) {
+                                const taskOverdue = isOverdue(task);
+                                rows.push(
+                                  <TableRow key={task.id} className={taskOverdue ? 'bg-amber-50' : undefined}>
+                                    <TableCell>
+                                      <button onClick={() => toggleInstance(task.id)} className="p-0.5">
+                                        {selectedInstances.has(task.id) ? (
+                                          <CheckSquare className="w-4 h-4 text-primary" />
+                                        ) : (
+                                          <Square className="w-4 h-4 text-muted-foreground" />
+                                        )}
+                                      </button>
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-2 pl-8">
+                                        <span className="font-medium">{task.itemName}</span>
+                                        {taskOverdue && <Clock className="w-3.5 h-3.5 text-amber-600" />}
+                                        {!!task.locked && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
+                                        {!!task.plannedDateOverride && <Pencil className="w-3.5 h-3.5 text-blue-500" />}
+                                        {task.scopeOverride === 'NOT_REQUIRED' && <ShieldOff className="w-3.5 h-3.5 text-gray-400" />}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <select
+                                        className="h-8 rounded border border-input bg-background px-2 text-xs"
+                                        value={task.status}
+                                        onChange={(e) => handleStatusChange(task.id, e.target.value as ActivityStatus)}
+                                      >
+                                        {STATUS_OPTIONS.map((s) => (
+                                          <option key={s} value={s}>{s}</option>
+                                        ))}
+                                      </select>
+                                    </TableCell>
+                                    <TableCell>
+                                      {overrideDateId === task.id ? (
+                                        <div className="flex items-center gap-1">
+                                          <input
+                                            type="date"
+                                            className="h-8 rounded border border-input bg-background px-2 text-xs"
+                                            value={overrideDateValue}
+                                            onChange={(e) => setOverrideDateValue(e.target.value)}
+                                          />
+                                          <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => handleSaveOverride(task.id)}>Save</Button>
+                                          <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setOverrideDateId(null)}>Cancel</Button>
+                                        </div>
+                                      ) : (
+                                        <span className={taskOverdue ? 'text-amber-600 font-medium' : undefined}>
+                                          {formatDate(task.plannedDate)}
+                                          {!!task.plannedDateOverride && (
+                                            <span className="text-xs text-blue-500 ml-1">(override)</span>
+                                          )}
+                                        </span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell>{formatDate(task.actualDate)}</TableCell>
+                                    <TableCell>
+                                      {editingNotesId === task.id ? (
+                                        <div className="flex items-center gap-1">
+                                          <input
+                                            type="text"
+                                            className="h-8 rounded border border-input bg-background px-2 text-xs flex-1"
+                                            value={notesText}
+                                            onChange={(e) => setNotesText(e.target.value)}
+                                            placeholder="Add notes..."
+                                            autoFocus
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') handleSaveNotes(task.id);
+                                              if (e.key === 'Escape') setEditingNotesId(null);
+                                            }}
+                                          />
+                                          <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => handleSaveNotes(task.id)}>Save</Button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 max-w-[150px] truncate"
+                                          onClick={() => { setEditingNotesId(task.id); setNotesText(task.notes || ''); }}
+                                        >
+                                          {task.notes ? <span className="truncate">{task.notes}</span> : <><MessageSquare className="w-3 h-3" />Add note</>}
+                                        </button>
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-1">
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" title={task.locked ? 'Unlock' : 'Lock'} onClick={() => handleToggleLock(task.id, task.locked)}>
+                                          {task.locked ? <Lock className="w-3.5 h-3.5" /> : <LockOpen className="w-3.5 h-3.5" />}
+                                        </Button>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" title={task.plannedDateOverride ? 'Remove date override' : 'Override date'} onClick={() => handleToggleOverride(task.id, task.plannedDateOverride)}>
+                                          <Pencil className={`w-3.5 h-3.5 ${task.plannedDateOverride ? 'text-blue-500' : ''}`} />
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              }
+                            }
+                          }
+
+                          // Render ungrouped tasks (not anchored to a milestone)
+                          for (const task of ungrouped) {
+                            const taskOverdue = isOverdue(task);
+                            rows.push(
+                              <TableRow key={task.id} className={taskOverdue ? 'bg-amber-50' : undefined}>
+                                <TableCell>
+                                  <button onClick={() => toggleInstance(task.id)} className="p-0.5">
+                                    {selectedInstances.has(task.id) ? (
+                                      <CheckSquare className="w-4 h-4 text-primary" />
+                                    ) : (
+                                      <Square className="w-4 h-4 text-muted-foreground" />
+                                    )}
+                                  </button>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{task.itemName}</span>
+                                    {taskOverdue && <Clock className="w-3.5 h-3.5 text-amber-600" />}
+                                    {!!task.locked && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
+                                    {!!task.plannedDateOverride && <Pencil className="w-3.5 h-3.5 text-blue-500" />}
+                                    {task.scopeOverride === 'NOT_REQUIRED' && <ShieldOff className="w-3.5 h-3.5 text-gray-400" />}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <select
+                                    className="h-8 rounded border border-input bg-background px-2 text-xs"
+                                    value={task.status}
+                                    onChange={(e) => handleStatusChange(task.id, e.target.value as ActivityStatus)}
+                                  >
+                                    {STATUS_OPTIONS.map((s) => (
+                                      <option key={s} value={s}>{s}</option>
+                                    ))}
+                                  </select>
+                                </TableCell>
+                                <TableCell>
+                                  {overrideDateId === task.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="date"
+                                        className="h-8 rounded border border-input bg-background px-2 text-xs"
+                                        value={overrideDateValue}
+                                        onChange={(e) => setOverrideDateValue(e.target.value)}
+                                      />
+                                      <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => handleSaveOverride(task.id)}>Save</Button>
+                                      <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setOverrideDateId(null)}>Cancel</Button>
+                                    </div>
+                                  ) : (
+                                    <span className={taskOverdue ? 'text-amber-600 font-medium' : undefined}>
+                                      {formatDate(task.plannedDate)}
+                                      {!!task.plannedDateOverride && (
+                                        <span className="text-xs text-blue-500 ml-1">(override)</span>
+                                      )}
+                                    </span>
+                                  )}
+                                </TableCell>
+                                <TableCell>{formatDate(task.actualDate)}</TableCell>
+                                <TableCell>
+                                  {editingNotesId === task.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="text"
+                                        className="h-8 rounded border border-input bg-background px-2 text-xs flex-1"
+                                        value={notesText}
+                                        onChange={(e) => setNotesText(e.target.value)}
+                                        placeholder="Add notes..."
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') handleSaveNotes(task.id);
+                                          if (e.key === 'Escape') setEditingNotesId(null);
+                                        }}
+                                      />
+                                      <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => handleSaveNotes(task.id)}>Save</Button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 max-w-[150px] truncate"
+                                      onClick={() => { setEditingNotesId(task.id); setNotesText(task.notes || ''); }}
+                                    >
+                                      {task.notes ? <span className="truncate">{task.notes}</span> : <><MessageSquare className="w-3 h-3" />Add note</>}
+                                    </button>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-1">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" title={task.locked ? 'Unlock' : 'Lock'} onClick={() => handleToggleLock(task.id, task.locked)}>
+                                      {task.locked ? <Lock className="w-3.5 h-3.5" /> : <LockOpen className="w-3.5 h-3.5" />}
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" title={task.plannedDateOverride ? 'Remove date override' : 'Override date'} onClick={() => handleToggleOverride(task.id, task.plannedDateOverride)}>
+                                      <Pencil className={`w-3.5 h-3.5 ${task.plannedDateOverride ? 'text-blue-500' : ''}`} />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          }
+
+                          return rows;
+                        })()}
                       </TableBody>
                     </Table>
                   </div>

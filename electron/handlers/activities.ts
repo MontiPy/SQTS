@@ -30,6 +30,7 @@ const createTemplateScheduleItemSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   anchorType: z.enum(['FIXED_DATE', 'SCHEDULE_ITEM', 'COMPLETION', 'PROJECT_MILESTONE']),
   anchorRefId: z.number().int().nullable().optional(),
+  anchorMilestoneName: z.string().nullable().optional(),
   offsetDays: z.number().int().nullable().optional(),
   fixedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').nullable().optional(),
   sortOrder: z.number().int().optional(),
@@ -40,6 +41,7 @@ const updateTemplateScheduleItemSchema = z.object({
   name: z.string().min(1).optional(),
   anchorType: z.enum(['FIXED_DATE', 'SCHEDULE_ITEM', 'COMPLETION', 'PROJECT_MILESTONE']).optional(),
   anchorRefId: z.number().int().nullable().optional(),
+  anchorMilestoneName: z.string().nullable().optional(),
   offsetDays: z.number().int().nullable().optional(),
   fixedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   sortOrder: z.number().int().optional(),
@@ -224,9 +226,9 @@ export function registerActivityHandlers() {
         for (const item of items) {
           run(
             `INSERT INTO activity_template_schedule_items
-             (activity_template_id, kind, name, anchor_type, anchor_ref_id, offset_days, fixed_date, sort_order)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [newTemplateId, item.kind, item.name, item.anchorType, null, item.offsetDays, item.fixedDate, item.sortOrder]
+             (activity_template_id, kind, name, anchor_type, anchor_ref_id, anchor_milestone_name, offset_days, fixed_date, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [newTemplateId, item.kind, item.name, item.anchorType, null, item.anchorMilestoneName || null, item.offsetDays, item.fixedDate, item.sortOrder]
           );
           const newItemId = queryOne<{ id: number }>('SELECT last_insert_rowid() as id')!.id;
           idMap.set(item.id, newItemId);
@@ -326,14 +328,15 @@ export function registerActivityHandlers() {
 
       run(
         `INSERT INTO activity_template_schedule_items
-         (activity_template_id, kind, name, anchor_type, anchor_ref_id, offset_days, fixed_date, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         (activity_template_id, kind, name, anchor_type, anchor_ref_id, anchor_milestone_name, offset_days, fixed_date, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           validated.activityTemplateId,
           validated.kind,
           validated.name,
           validated.anchorType,
           validated.anchorRefId || null,
+          validated.anchorMilestoneName || null,
           validated.offsetDays || null,
           validated.fixedDate || null,
           validated.sortOrder || 0,
@@ -382,6 +385,10 @@ export function registerActivityHandlers() {
       if (validated.anchorRefId !== undefined) {
         updates.push('anchor_ref_id = ?');
         values.push(validated.anchorRefId);
+      }
+      if (validated.anchorMilestoneName !== undefined) {
+        updates.push('anchor_milestone_name = ?');
+        values.push(validated.anchorMilestoneName);
       }
       if (validated.offsetDays !== undefined) {
         updates.push('offset_days = ?');
@@ -803,9 +810,9 @@ export function registerActivityHandlers() {
         for (const item of snapshot.scheduleItems) {
           run(
             `INSERT INTO activity_template_schedule_items
-             (activity_template_id, kind, name, anchor_type, anchor_ref_id, offset_days, fixed_date, sort_order)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [version.activityTemplateId, item.kind, item.name, item.anchorType, null, item.offsetDays, item.fixedDate, item.sortOrder]
+             (activity_template_id, kind, name, anchor_type, anchor_ref_id, anchor_milestone_name, offset_days, fixed_date, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [version.activityTemplateId, item.kind, item.name, item.anchorType, null, item.anchorMilestoneName || null, item.offsetDays, item.fixedDate, item.sortOrder]
           );
           const newItem = queryOne<{ id: number }>('SELECT last_insert_rowid() as id')!;
           newIds.push(newItem.id);

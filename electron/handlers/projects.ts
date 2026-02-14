@@ -4,6 +4,28 @@ import { query, queryOne, run, withTransaction } from '../database';
 import { createSuccessResponse, createErrorResponse, createAuditEvent } from './shared';
 import type { Project, ProjectMilestone, ProjectActivity, ActivityTemplateScheduleItem } from '@shared/types';
 
+/** Resolve a template's anchorMilestoneName to a project_milestone_id.
+ *  Matching priority: exact name → exact category → name starts with category (word boundary).
+ *  E.g., item "PA 2" matches milestone with category "PA" even if no milestone is named "PA 2". */
+function resolveMilestoneId(
+  anchorMilestoneName: string,
+  projectMilestones: ProjectMilestone[]
+): number | null {
+  // 1. Exact name match
+  const byName = projectMilestones.find(m => m.name === anchorMilestoneName);
+  if (byName) return byName.id;
+  // 2. Exact category match
+  const byCategory = projectMilestones.find(m => m.category === anchorMilestoneName);
+  if (byCategory) return byCategory.id;
+  // 3. Category-prefix match: item name starts with a milestone's category
+  //    e.g., "PA 2" starts with "PA " → match milestone with category "PA"
+  const byCategoryPrefix = projectMilestones.find(
+    m => m.category && anchorMilestoneName.startsWith(m.category + ' ')
+  );
+  if (byCategoryPrefix) return byCategoryPrefix.id;
+  return null;
+}
+
 // Zod validation schemas
 const createProjectSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -287,13 +309,26 @@ export function registerProjectHandlers() {
 
         const idMap = new Map<number, number>(); // template item ID -> project schedule item ID
 
-        // First pass: create items without anchor refs
+        // Get project milestones for resolving PROJECT_MILESTONE anchors
+        const projectMilestones = query<ProjectMilestone>(
+          'SELECT * FROM project_milestones WHERE project_id = ? ORDER BY sort_order',
+          [validated.projectId]
+        );
+
+        // First pass: create items without anchor refs, but WITH milestone refs
         for (const item of templateItems) {
+          let projectMilestoneId: number | null = null;
+          if (item.anchorType === 'PROJECT_MILESTONE') {
+            // Try explicit anchor_milestone_name first, then fall back to item's own name
+            const nameToMatch = item.anchorMilestoneName || item.name;
+            projectMilestoneId = resolveMilestoneId(nameToMatch, projectMilestones);
+          }
+
           run(
             `INSERT INTO project_schedule_items
              (project_activity_id, template_item_id, kind, name, anchor_type, anchor_ref_id, offset_days, fixed_date, override_date, override_enabled, project_milestone_id, sort_order)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [projectActivityId, item.id, item.kind, item.name, item.anchorType, null, item.offsetDays, item.fixedDate, null, false, null, item.sortOrder]
+            [projectActivityId, item.id, item.kind, item.name, item.anchorType, null, item.offsetDays, item.fixedDate, null, false, projectMilestoneId, item.sortOrder]
           );
           const newId = queryOne<{ id: number }>('SELECT last_insert_rowid() as id')!.id;
           idMap.set(item.id, newId);
@@ -333,6 +368,16 @@ export function registerProjectHandlers() {
 
   ipcMain.handle('project-activities:remove', async (_, projectActivityId: number) => {
     try {
+      // Explicitly clean up supplier instances (sql.js CASCADE is unreliable)
+      const activityInstances = query<{ id: number }>(
+        'SELECT id FROM supplier_activity_instances WHERE project_activity_id = ?',
+        [projectActivityId]
+      );
+      for (const ai of activityInstances) {
+        run('DELETE FROM supplier_schedule_item_instances WHERE supplier_activity_instance_id = ?', [ai.id]);
+      }
+      run('DELETE FROM supplier_activity_instances WHERE project_activity_id = ?', [projectActivityId]);
+      run('DELETE FROM project_schedule_items WHERE project_activity_id = ?', [projectActivityId]);
       run('DELETE FROM project_activities WHERE id = ?', [projectActivityId]);
       createAuditEvent('project_activity', projectActivityId, 'remove');
       return createSuccessResponse({ id: projectActivityId });

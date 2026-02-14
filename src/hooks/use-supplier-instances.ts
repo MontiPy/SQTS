@@ -24,6 +24,23 @@ export function useSupplierProjects(supplierId?: number) {
   });
 }
 
+// Suppliers assigned to a project
+export function useProjectSuppliers(projectId?: number) {
+  return useQuery<(SupplierProject & { supplierName: string; nmrRank: string | null })[]>({
+    queryKey: ['project-suppliers', projectId],
+    queryFn: async () => {
+      if (!projectId) throw new Error('Project ID is required');
+      const response: APIResponse<(SupplierProject & { supplierName: string; nmrRank: string | null })[]> =
+        await window.sqts.supplierInstances.listProjectSuppliers(projectId);
+      if (!response.success || !response.data) {
+        throw new Error(response.error || 'Failed to fetch project suppliers');
+      }
+      return response.data;
+    },
+    enabled: !!projectId,
+  });
+}
+
 export function useSupplierProject(supplierId: number, projectId: number) {
   return useQuery<SupplierProject>({
     queryKey: ['supplier-projects', supplierId, projectId],

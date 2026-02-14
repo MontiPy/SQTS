@@ -7,12 +7,30 @@ import type {
   ActivityTemplateScheduleItem,
   ProjectActivity,
   ProjectScheduleItem,
+  ProjectMilestone,
   TemplateSyncPreview,
   ProjectTemplateStatus,
   BatchApplyResult,
   TemplateOutOfSyncActivity,
   BatchSyncResult,
 } from '@shared/types';
+
+/** Resolve a template's anchorMilestoneName to a project_milestone_id.
+ *  Matching priority: exact name → exact category → name starts with category (word boundary). */
+function resolveMilestoneId(
+  anchorMilestoneName: string,
+  projectMilestones: ProjectMilestone[]
+): number | null {
+  const byName = projectMilestones.find(m => m.name === anchorMilestoneName);
+  if (byName) return byName.id;
+  const byCategory = projectMilestones.find(m => m.category === anchorMilestoneName);
+  if (byCategory) return byCategory.id;
+  const byCategoryPrefix = projectMilestones.find(
+    m => m.category && anchorMilestoneName.startsWith(m.category + ' ')
+  );
+  if (byCategoryPrefix) return byCategoryPrefix.id;
+  return null;
+}
 
 interface OutOfSyncActivity {
   id: number;
@@ -27,7 +45,7 @@ interface OutOfSyncActivity {
  * Must be called inside a transaction.
  * Returns { fromVersion, toVersion } on success.
  */
-function applySyncForSingleProjectActivity(
+export function applySyncForSingleProjectActivity(
   projectActivityId: number
 ): { fromVersion: number; toVersion: number } {
   const pa = queryOne<ProjectActivity & { activityTemplateId: number }>(
@@ -76,9 +94,21 @@ function applySyncForSingleProjectActivity(
   }
 
   // (a) Delete project schedule items whose template_item_id no longer exists in template
+  //     Explicitly delete supplier instances first (sql.js CASCADE is unreliable)
+  const deletedProjectItemIds: number[] = [];
   for (const pItem of projectItems) {
     if (pItem.templateItemId != null && !templateById.has(pItem.templateItemId)) {
-      run('DELETE FROM project_schedule_items WHERE id = ?', [pItem.id]);
+      deletedProjectItemIds.push(pItem.id);
+    }
+  }
+  if (deletedProjectItemIds.length > 0) {
+    const placeholders = deletedProjectItemIds.map(() => '?').join(',');
+    run(
+      `DELETE FROM supplier_schedule_item_instances WHERE project_schedule_item_id IN (${placeholders})`,
+      deletedProjectItemIds
+    );
+    for (const id of deletedProjectItemIds) {
+      run('DELETE FROM project_schedule_items WHERE id = ?', [id]);
     }
   }
 
@@ -93,15 +123,33 @@ function applySyncForSingleProjectActivity(
     }
   }
 
-  // First pass: insert new items without anchor_ref_id
+  // Get project milestones for resolving PROJECT_MILESTONE anchors
+  const paForProject = queryOne<{ projectId: number }>(
+    'SELECT project_id FROM project_activities WHERE id = ?',
+    [projectActivityId]
+  );
+  const projectMilestones = paForProject
+    ? query<ProjectMilestone>(
+        'SELECT * FROM project_milestones WHERE project_id = ? ORDER BY sort_order',
+        [paForProject.projectId]
+      )
+    : [];
+
+  // First pass: insert new items without anchor_ref_id, but WITH milestone refs
   const newTemplateItemIds: number[] = [];
   for (const tItem of templateItems) {
     if (!projectByTemplateItemId.has(tItem.id)) {
+      let projectMilestoneId: number | null = null;
+      if (tItem.anchorType === 'PROJECT_MILESTONE') {
+        const nameToMatch = tItem.anchorMilestoneName || tItem.name;
+        projectMilestoneId = resolveMilestoneId(nameToMatch, projectMilestones);
+      }
+
       run(
         `INSERT INTO project_schedule_items
-         (project_activity_id, template_item_id, kind, name, anchor_type, anchor_ref_id, offset_days, fixed_date, sort_order)
-         VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
-        [projectActivityId, tItem.id, tItem.kind, tItem.name, tItem.anchorType, tItem.offsetDays, tItem.fixedDate, tItem.sortOrder]
+         (project_activity_id, template_item_id, kind, name, anchor_type, anchor_ref_id, offset_days, fixed_date, project_milestone_id, sort_order)
+         VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
+        [projectActivityId, tItem.id, tItem.kind, tItem.name, tItem.anchorType, tItem.offsetDays, tItem.fixedDate, projectMilestoneId, tItem.sortOrder]
       );
       const newItem = queryOne<{ id: number }>('SELECT last_insert_rowid() as id')!;
       templateItemIdToProjectItemId.set(tItem.id, newItem.id);
@@ -124,18 +172,55 @@ function applySyncForSingleProjectActivity(
     }
   }
 
-  // (c) Update existing items where name/kind/anchorType/offsetDays changed
+  // (a2) Create supplier_schedule_item_instances for newly added schedule items
+  if (newTemplateItemIds.length > 0) {
+    // Find all supplier_activity_instances for this project_activity
+    const supplierActivityInstances = query<{ id: number }>(
+      'SELECT id FROM supplier_activity_instances WHERE project_activity_id = ?',
+      [projectActivityId]
+    );
+
+    for (const sai of supplierActivityInstances) {
+      for (const tItemId of newTemplateItemIds) {
+        const newProjectItemId = templateItemIdToProjectItemId.get(tItemId);
+        if (newProjectItemId) {
+          run(
+            `INSERT INTO supplier_schedule_item_instances
+             (supplier_activity_instance_id, project_schedule_item_id, planned_date, actual_date, status, planned_date_override, scope_override, locked, notes)
+             VALUES (?, ?, NULL, NULL, 'Not Started', 0, NULL, 0, NULL)`,
+            [sai.id, newProjectItemId]
+          );
+        }
+      }
+    }
+  }
+
+  // (c) Update existing items where name/kind/anchorType/offsetDays changed,
+  //     or where project_milestone_id needs to be resolved
   for (const tItem of templateItems) {
     const pItem = projectByTemplateItemId.get(tItem.id);
     if (!pItem) continue;
 
-    const needsUpdate =
+    // Resolve project_milestone_id for PROJECT_MILESTONE anchors
+    let newMilestoneId: number | null = null;
+    if (tItem.anchorType === 'PROJECT_MILESTONE') {
+      const nameToMatch = tItem.anchorMilestoneName || tItem.name;
+      newMilestoneId = resolveMilestoneId(nameToMatch, projectMilestones);
+    }
+
+    const needsFieldUpdate =
       pItem.name !== tItem.name ||
       pItem.kind !== tItem.kind ||
       pItem.anchorType !== tItem.anchorType ||
       pItem.offsetDays !== tItem.offsetDays;
 
-    if (needsUpdate) {
+    // Also update if milestone ID was null but can now be resolved
+    const needsMilestoneLink =
+      tItem.anchorType === 'PROJECT_MILESTONE' &&
+      pItem.projectMilestoneId == null &&
+      newMilestoneId != null;
+
+    if (needsFieldUpdate || needsMilestoneLink) {
       // Resolve anchor_ref_id from template to project item
       let newAnchorRefId: number | null = null;
       if (tItem.anchorRefId != null) {
@@ -144,9 +229,9 @@ function applySyncForSingleProjectActivity(
 
       run(
         `UPDATE project_schedule_items
-         SET name = ?, kind = ?, anchor_type = ?, anchor_ref_id = ?, offset_days = ?, sort_order = ?
+         SET name = ?, kind = ?, anchor_type = ?, anchor_ref_id = ?, project_milestone_id = ?, offset_days = ?, sort_order = ?
          WHERE id = ?`,
-        [tItem.name, tItem.kind, tItem.anchorType, newAnchorRefId, tItem.offsetDays, tItem.sortOrder, pItem.id]
+        [tItem.name, tItem.kind, tItem.anchorType, newAnchorRefId, newMilestoneId, tItem.offsetDays, tItem.sortOrder, pItem.id]
       );
     }
   }
@@ -349,13 +434,25 @@ export function registerTemplateSyncHandlers() {
             // Copy template schedule items — two-pass for anchor refs
             const idMap = new Map<number, number>();
 
-            // First pass: insert without anchor refs
+            // Get project milestones for resolving PROJECT_MILESTONE anchors
+            const batchProjectMilestones = query<ProjectMilestone>(
+              'SELECT * FROM project_milestones WHERE project_id = ? ORDER BY sort_order',
+              [projectId]
+            );
+
+            // First pass: insert without anchor refs, but WITH milestone refs
             for (const item of templateItems) {
+              let projectMilestoneId: number | null = null;
+              if (item.anchorType === 'PROJECT_MILESTONE') {
+                const nameToMatch = item.anchorMilestoneName || item.name;
+                projectMilestoneId = resolveMilestoneId(nameToMatch, batchProjectMilestones);
+              }
+
               run(
                 `INSERT INTO project_schedule_items
                  (project_activity_id, template_item_id, kind, name, anchor_type, anchor_ref_id, offset_days, fixed_date, override_date, override_enabled, project_milestone_id, sort_order)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [projectActivityId, item.id, item.kind, item.name, item.anchorType, null, item.offsetDays, item.fixedDate, null, false, null, item.sortOrder]
+                [projectActivityId, item.id, item.kind, item.name, item.anchorType, null, item.offsetDays, item.fixedDate, null, false, projectMilestoneId, item.sortOrder]
               );
               const newId = queryOne<{ id: number }>('SELECT last_insert_rowid() as id')!.id;
               idMap.set(item.id, newId);

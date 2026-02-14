@@ -213,6 +213,15 @@ export interface PropagationResult {
   errors: Array<{ instanceId: number; error: string }>;
 }
 
+export interface SyncAndPropagateResult {
+  templatesSynced: number;
+  syncErrors: Array<{ projectActivityId: number; error: string }>;
+  projectsPropagated: number;
+  datesUpdated: number;
+  datesSkipped: number;
+  propagationErrors: Array<{ projectId: number; error: string }>;
+}
+
 // --- Settings ---
 
 export interface AppSettings {
@@ -448,4 +457,47 @@ export interface MilestoneDateGridData {
   rows: MilestoneDateGridRow[];
   /** key = `${projectId}::${category}::${name}` */
   cells: Record<string, MilestoneDateGridCell>;
+}
+
+// --- Supplier Milestone Date Grid ---
+
+export interface SupplierMilestoneDateGrid {
+  suppliers: { supplierProjectId: number; supplierId: number; supplierName: string }[];
+  milestones: ProjectMilestone[];
+  dates: Record<string, string | null>; // key = `${supplierProjectId}-${milestoneId}`
+}
+
+// --- Audit Log Types ---
+
+export interface AuditEvent {
+  id: number;
+  entityType: string;
+  entityId: number | null;
+  action: string;
+  details: Record<string, any> | null;
+  createdAt: string;
+}
+
+export interface AuditListParams {
+  entityType?: string;
+  action?: string;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AuditListResult {
+  events: AuditEvent[];
+  total: number;
+}
+
+// --- Search / Command Palette ---
+
+export interface SearchResult {
+  id: number;
+  name: string;
+  type: 'supplier' | 'project' | 'activity-template' | 'project-template' | 'part';
+  subtitle?: string;
 }

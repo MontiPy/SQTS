@@ -246,9 +246,13 @@ export function registerSupplierInstanceHandlers() {
         }
 
         for (const activityInstance of activityInstances) {
-          // Get schedule item instances
-          const scheduleInstances = query<SupplierScheduleItemInstance>(
-            'SELECT * FROM supplier_schedule_item_instances WHERE supplier_activity_instance_id = ? ORDER BY id',
+          // Get schedule item instances with item metadata
+          const scheduleInstances = query<SupplierScheduleItemInstance & { itemName: string; kind: string; anchorType: string; anchorRefId: number | null }>(
+            `SELECT ssii.*, psi.name as item_name, psi.kind, psi.anchor_type, psi.anchor_ref_id
+             FROM supplier_schedule_item_instances ssii
+             JOIN project_schedule_items psi ON ssii.project_schedule_item_id = psi.id
+             WHERE ssii.supplier_activity_instance_id = ?
+             ORDER BY psi.sort_order`,
             [activityInstance.id]
           );
 
@@ -593,8 +597,8 @@ export function registerSupplierInstanceHandlers() {
       // For each activity, get schedule item instances
       const activities = [];
       for (const activity of activityInstances) {
-        const scheduleInstances = query<SupplierScheduleItemInstance & { itemName: string }>(
-          `SELECT ssii.*, psi.name as item_name
+        const scheduleInstances = query<SupplierScheduleItemInstance & { itemName: string; kind: string; anchorType: string; anchorRefId: number | null }>(
+          `SELECT ssii.*, psi.name as item_name, psi.kind, psi.anchor_type, psi.anchor_ref_id
            FROM supplier_schedule_item_instances ssii
            JOIN project_schedule_items psi ON ssii.project_schedule_item_id = psi.id
            WHERE ssii.supplier_activity_instance_id = ?
@@ -612,6 +616,24 @@ export function registerSupplierInstanceHandlers() {
         supplierProject,
         activities,
       });
+    } catch (error: any) {
+      return createErrorResponse(error.message);
+    }
+  });
+
+  // List all suppliers for a project
+  ipcMain.handle('supplier-instances:list-project-suppliers', async (_, projectId: number) => {
+    try {
+      const suppliers = query<SupplierProject & { supplierName: string; nmrRank: string | null }>(
+        `SELECT sp.*, s.name as supplier_name, s.nmr_rank
+         FROM supplier_projects sp
+         JOIN suppliers s ON s.id = sp.supplier_id
+         WHERE sp.project_id = ?
+         ORDER BY s.name`,
+        [projectId]
+      );
+
+      return createSuccessResponse(suppliers);
     } catch (error: any) {
       return createErrorResponse(error.message);
     }

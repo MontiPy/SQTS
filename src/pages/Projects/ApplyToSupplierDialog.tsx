@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Users, AlertCircle } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSuppliers } from '@/hooks/use-suppliers';
 import { useProjectActivities } from '@/hooks/use-project-activities';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +16,7 @@ interface ApplyToSupplierDialogProps {
 }
 
 export default function ApplyToSupplierDialog({ isOpen, onClose, projectId, projectName }: ApplyToSupplierDialogProps) {
+  const queryClient = useQueryClient();
   const { success, error: showError } = useToast();
   const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers();
   const { data: projectActivities, isLoading: loadingActivities } = useProjectActivities(projectId);
@@ -72,6 +74,10 @@ export default function ApplyToSupplierDialog({ isOpen, onClose, projectId, proj
         throw new Error(response.error || 'Failed to apply project');
       }
 
+      // Invalidate caches so both project and supplier pages reflect the change
+      queryClient.invalidateQueries({ queryKey: ['project-suppliers', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['suppliers', selectedSupplierId, 'projects'] });
       success(`Project applied to supplier with ${response.data?.activitiesCreated} activities`);
       onClose();
     } catch (err) {

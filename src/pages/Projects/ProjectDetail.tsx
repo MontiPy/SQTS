@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit, Trash2, Plus, RefreshCw, Users, FileStack } from 'lucide-react';
 import { useProject, useDeleteProject, useMilestones } from '@/hooks/use-projects';
+import { useProjectSuppliers } from '@/hooks/use-supplier-instances';
 import { useSettings } from '@/hooks/use-settings';
 import type { ProjectMilestone } from '@shared/types';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +16,8 @@ import ProjectActivityManager from './ProjectActivityManager';
 import ApplyToSupplierDialog from './ApplyToSupplierDialog';
 import PropagationPreview from '@/components/PropagationPreview';
 import ApplyProjectTemplateDialog from './ApplyProjectTemplateDialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import SupplierMilestoneDateGrid from './SupplierMilestoneDateGrid';
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +27,7 @@ export default function ProjectDetail() {
 
   const { data: project, isLoading } = useProject(projectId);
   const { data: milestones } = useMilestones(projectId);
+  const { data: projectSuppliers } = useProjectSuppliers(projectId);
   const { data: settings } = useSettings();
   const deleteProject = useDeleteProject();
 
@@ -103,90 +107,125 @@ export default function ProjectDetail() {
         </Button>
       </div>
 
-      <div className="space-y-6">
-        {/* Milestones Section */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Milestones</h2>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => setShowTemplateDialog(true)}>
-                <FileStack className="w-4 h-4 mr-2" />
-                Apply Template
-              </Button>
-              <Button size="sm" onClick={() => {
-                setEditingMilestone(undefined);
-                setShowMilestoneEditor(true);
-              }}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Milestone
-              </Button>
-            </div>
-          </div>
+      <Tabs defaultValue="overview">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="milestone-dates">Milestone Dates</TabsTrigger>
+        </TabsList>
 
-          {!milestones || milestones.length === 0 ? (
-            <Card>
-              <CardContent className="py-6">
-                <p className="text-sm text-muted-foreground">No milestones defined yet.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {orderedCategories.map(([category, categoryMilestones]) => (
-                <Card key={category}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">{category}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {categoryMilestones.map((milestone) => (
-                        <div
-                          key={milestone.id}
-                          className="flex items-center justify-between py-1"
-                        >
-                          <div>
-                            <span className="text-sm font-medium">{milestone.name}</span>
-                            {milestone.date && (
-                              <span className="text-xs text-muted-foreground ml-2">
-                                {formatDate(milestone.date)}
-                              </span>
-                            )}
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7"
-                            onClick={() => {
-                              setEditingMilestone(milestone);
-                              setShowMilestoneEditor(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
+        <TabsContent value="overview">
+          <div className="space-y-6">
+            {/* Milestones Section */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold">Milestones</h2>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setShowTemplateDialog(true)}>
+                    <FileStack className="w-4 h-4 mr-2" />
+                    Apply Template
+                  </Button>
+                  <Button size="sm" onClick={() => {
+                    setEditingMilestone(undefined);
+                    setShowMilestoneEditor(true);
+                  }}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Milestone
+                  </Button>
+                </div>
+              </div>
+
+              {!milestones || milestones.length === 0 ? (
+                <Card>
+                  <CardContent className="py-6">
+                    <p className="text-sm text-muted-foreground">No milestones defined yet.</p>
                   </CardContent>
                 </Card>
-              ))}
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {orderedCategories.map(([category, categoryMilestones]) => (
+                    <Card key={category}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">{category}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          {categoryMilestones.map((milestone) => (
+                            <div
+                              key={milestone.id}
+                              className="flex items-center justify-between py-1"
+                            >
+                              <div>
+                                <span className="text-sm font-medium">{milestone.name}</span>
+                                {milestone.date && (
+                                  <span className="text-xs text-muted-foreground ml-2">
+                                    {formatDate(milestone.date)}
+                                  </span>
+                                )}
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7"
+                                onClick={() => {
+                                  setEditingMilestone(milestone);
+                                  setShowMilestoneEditor(true);
+                                }}
+                              >
+                                Edit
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        <ProjectActivityManager projectId={projectId} />
+            <ProjectActivityManager projectId={projectId} />
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Suppliers</CardTitle>
-            <Button size="sm" onClick={() => setShowApplyDialog(true)}>
-              <Users className="w-4 h-4 mr-2" />
-              Apply to Supplier
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">No suppliers assigned to this project yet.</p>
-          </CardContent>
-        </Card>
-      </div>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Suppliers ({projectSuppliers?.length ?? 0})</CardTitle>
+                <Button size="sm" onClick={() => setShowApplyDialog(true)}>
+                  <Users className="w-4 h-4 mr-2" />
+                  Apply to Supplier
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {!projectSuppliers || projectSuppliers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No suppliers assigned to this project yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {projectSuppliers.map((sp) => (
+                      <div
+                        key={sp.id}
+                        className="flex items-center justify-between py-2 px-3 rounded-md hover:bg-muted/50 cursor-pointer"
+                        onClick={() => navigate(`/suppliers/${sp.supplierId}`)}
+                      >
+                        <div>
+                          <span className="text-sm font-medium">{sp.supplierName}</span>
+                          {sp.nmrRank && (
+                            <span className="ml-2 text-xs px-1.5 py-0.5 bg-muted rounded">{sp.nmrRank}</span>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(sp.createdAt)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="milestone-dates">
+          <SupplierMilestoneDateGrid projectId={projectId} />
+        </TabsContent>
+      </Tabs>
 
       {showEditForm && (
         <ProjectForm

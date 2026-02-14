@@ -16,6 +16,71 @@ const applyPropagationSchema = z.object({
   selectedSupplierIds: z.array(z.number().int().positive()).optional().nullable(),
 });
 
+/**
+ * Repair project_schedule_items that have anchor_type = PROJECT_MILESTONE
+ * but project_milestone_id is NULL. Resolves using the linked template item's
+ * anchor_milestone_name matched against project milestones by name or category.
+ */
+export function repairMilestoneLinks(projectId: number): void {
+  const milestones = query<ProjectMilestone>(
+    'SELECT * FROM project_milestones WHERE project_id = ? ORDER BY sort_order',
+    [projectId]
+  );
+  if (milestones.length === 0) return;
+
+  // Find unlinked items
+  const unlinked = query<{ id: number; templateItemId: number | null }>(
+    `SELECT psi.id, psi.template_item_id
+     FROM project_schedule_items psi
+     JOIN project_activities pa ON psi.project_activity_id = pa.id
+     WHERE pa.project_id = ?
+       AND psi.anchor_type = 'PROJECT_MILESTONE'
+       AND psi.project_milestone_id IS NULL`,
+    [projectId]
+  );
+  if (unlinked.length === 0) return;
+
+  for (const item of unlinked) {
+    let milestoneName: string | null = null;
+
+    // Try to get the milestone name from the template item's anchor_milestone_name
+    if (item.templateItemId != null) {
+      const templateItem = queryOne<{ anchorMilestoneName: string | null }>(
+        'SELECT anchor_milestone_name FROM activity_template_schedule_items WHERE id = ?',
+        [item.templateItemId]
+      );
+      milestoneName = templateItem?.anchorMilestoneName ?? null;
+    }
+
+    // Fallback: use the schedule item's own name to match against project milestones
+    // This handles the common case where anchor_milestone_name was never set (e.g., "PA 2" → milestone "PA 2")
+    if (!milestoneName) {
+      const psi = queryOne<{ name: string }>(
+        'SELECT name FROM project_schedule_items WHERE id = ?',
+        [item.id]
+      );
+      milestoneName = psi?.name ?? null;
+    }
+
+    if (!milestoneName) continue;
+
+    // Match by name first, then by category, then by category-prefix
+    const byName = milestones.find(m => m.name === milestoneName);
+    const byCategory = !byName ? milestones.find(m => m.category === milestoneName) : null;
+    const byCategoryPrefix = !byName && !byCategory
+      ? milestones.find(m => m.category && milestoneName.startsWith(m.category + ' '))
+      : null;
+    const match = byName || byCategory || byCategoryPrefix;
+
+    if (match) {
+      run(
+        'UPDATE project_schedule_items SET project_milestone_id = ? WHERE id = ?',
+        [match.id, item.id]
+      );
+    }
+  }
+}
+
 export function registerPropagationHandlers() {
   // Preview propagation changes
   ipcMain.handle('propagation:preview', async (_, projectId: unknown) => {
@@ -46,7 +111,10 @@ export function registerPropagationHandlers() {
         useBusinessDays: useBusinessDaysSetting?.value === 'true',
       };
 
-      // Get project schedule items
+      // Auto-repair any PROJECT_MILESTONE items with null milestone IDs
+      repairMilestoneLinks(validProjectId);
+
+      // Get project schedule items (after repair)
       const projectScheduleItems = query<ProjectScheduleItem>(
         `SELECT psi.* FROM project_schedule_items psi
          JOIN project_activities pa ON psi.project_activity_id = pa.id
@@ -166,6 +234,9 @@ export function registerPropagationHandlers() {
           skipOverridden: skipOverriddenSetting?.value === 'true',
           useBusinessDays: useBusinessDaysSetting?.value === 'true',
         };
+
+        // Auto-repair any PROJECT_MILESTONE items with null milestone IDs
+        repairMilestoneLinks(validated.projectId);
 
         const projectScheduleItems = query<ProjectScheduleItem>(
           `SELECT psi.* FROM project_schedule_items psi

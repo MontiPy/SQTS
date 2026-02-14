@@ -1,18 +1,41 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Clock, Circle, CheckCircle } from 'lucide-react';
+import { AlertCircle, Clock, Circle, CheckCircle, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useDashboardStats, useOverdueItems } from '@/hooks/use-dashboard';
+import { useSyncAndPropagate } from '@/hooks/use-global-ops';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { data: stats } = useDashboardStats();
   const { data: overdueItems } = useOverdueItems();
+  const syncAndPropagate = useSyncAndPropagate();
+  const [lastResult, setLastResult] = useState<string | null>(null);
 
   const overdue = stats?.overdue ?? 0;
   const dueSoon = stats?.dueSoon ?? 0;
   const inProgress = stats?.inProgress ?? 0;
   const recentlyUpdated = stats?.recentlyUpdated ?? 0;
+
+  const handleSyncAndPropagate = () => {
+    setLastResult(null);
+    syncAndPropagate.mutate(undefined, {
+      onSuccess: (data) => {
+        const parts: string[] = [];
+        if (data.templatesSynced > 0) parts.push(`${data.templatesSynced} templates synced`);
+        if (data.datesUpdated > 0) parts.push(`${data.datesUpdated} dates updated`);
+        if (data.datesSkipped > 0) parts.push(`${data.datesSkipped} skipped`);
+        if (data.syncErrors.length > 0) parts.push(`${data.syncErrors.length} sync errors`);
+        if (data.propagationErrors.length > 0) parts.push(`${data.propagationErrors.length} propagation errors`);
+        if (parts.length === 0) parts.push('Everything is up to date');
+        setLastResult(parts.join(', '));
+      },
+      onError: (error) => {
+        setLastResult(`Error: ${error.message}`);
+      },
+    });
+  };
 
   return (
     <div>
@@ -68,6 +91,29 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mb-6">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>Sync & Propagate</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Sync all templates to their latest versions and propagate milestone dates to every supplier
+            </p>
+          </div>
+          <Button
+            onClick={handleSyncAndPropagate}
+            disabled={syncAndPropagate.isPending}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncAndPropagate.isPending ? 'animate-spin' : ''}`} />
+            {syncAndPropagate.isPending ? 'Running...' : 'Sync & Propagate All'}
+          </Button>
+        </CardHeader>
+        {lastResult && (
+          <CardContent className="pt-0">
+            <p className="text-sm text-muted-foreground">{lastResult}</p>
+          </CardContent>
+        )}
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>

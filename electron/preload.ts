@@ -94,6 +94,7 @@ const api = {
     toggleApplicability: (params: any) => ipcRenderer.invoke('supplier-instances:toggle-applicability', params),
     getSupplierProject: (supplierId: number, projectId: number) => ipcRenderer.invoke('supplier-instances:get-supplier-project', supplierId, projectId),
     listSupplierProjects: (supplierId: number) => ipcRenderer.invoke('supplier-instances:list-supplier-projects', supplierId),
+    listProjectSuppliers: (projectId: number) => ipcRenderer.invoke('supplier-instances:list-project-suppliers', projectId),
   },
 
   // Propagation
@@ -172,6 +173,28 @@ const api = {
   milestoneGrid: {
     get: () => ipcRenderer.invoke('milestone-grid:get'),
     update: (params: any) => ipcRenderer.invoke('milestone-grid:update', params),
+  },
+
+  // Supplier Milestone Date Grid
+  supplierMilestoneGrid: {
+    get: (projectId: number) => ipcRenderer.invoke('supplier-milestone-grid:get', projectId),
+    update: (params: any) => ipcRenderer.invoke('supplier-milestone-grid:update', params),
+    fillRow: (params: any) => ipcRenderer.invoke('supplier-milestone-grid:fill-row', params),
+  },
+
+  // Audit Log
+  audit: {
+    list: (params?: any) => ipcRenderer.invoke('audit:list', params),
+  },
+
+  // Global Search
+  search: {
+    global: (query: string) => ipcRenderer.invoke('search:global', query),
+  },
+
+  // Global Operations
+  globalOps: {
+    syncAndPropagate: () => ipcRenderer.invoke('global:sync-and-propagate'),
   },
 
   // Window (Electron focus workaround)
