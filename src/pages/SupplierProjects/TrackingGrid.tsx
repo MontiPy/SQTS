@@ -14,10 +14,9 @@ import {
   MessageSquare,
   ShieldOff,
 } from 'lucide-react';
-import { useProjects } from '@/hooks/use-projects';
-import { useActivityTemplates } from '@/hooks/use-activity-templates';
+import { useSuppliers } from '@/hooks/use-suppliers';
 import {
-  useSupplierGrid,
+  useSupplierGridBySupplier,
   useUpdateInstanceStatus,
   useBatchUpdateStatus,
   useUpdateInstanceNotes,
@@ -37,7 +36,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatDate } from '@/lib/format';
-import type { ActivityStatus, SupplierScheduleItemInstance } from '@shared/types';
+import type {
+  ActivityStatus,
+  SupplierGridProject,
+  SupplierGridActivity,
+  SupplierGridScheduleInstance,
+} from '@shared/types';
 
 const STATUS_OPTIONS: ActivityStatus[] = [
   'Not Started',
@@ -48,33 +52,17 @@ const STATUS_OPTIONS: ActivityStatus[] = [
   'Not Required',
 ];
 
-function isOverdue(instance: SupplierScheduleItemInstance): boolean {
+function isOverdue(instance: SupplierGridScheduleInstance): boolean {
   if (!instance.plannedDate) return false;
   if (instance.status === 'Complete' || instance.status === 'Not Required') return false;
   const today = new Date().toISOString().split('T')[0];
   return instance.plannedDate < today;
 }
 
-interface ScheduleInstanceExt extends SupplierScheduleItemInstance {
-  itemName: string;
-  kind: 'MILESTONE' | 'TASK';
-  anchorType: string;
-  anchorRefId: number | null;
-}
-
-interface GridRow {
-  supplierId: number;
-  supplierName: string;
-  supplierProjectId: number;
-  projectActivityId: number;
-  activityInstanceId: number;
-  scheduleInstances: ScheduleInstanceExt[];
-}
-
-function buildMilestoneGroups(instances: ScheduleInstanceExt[]) {
-  const milestones: ScheduleInstanceExt[] = [];
-  const tasksByMilestone = new Map<number, ScheduleInstanceExt[]>();
-  const ungrouped: ScheduleInstanceExt[] = [];
+function buildMilestoneGroups(instances: SupplierGridScheduleInstance[]) {
+  const milestones: SupplierGridScheduleInstance[] = [];
+  const tasksByMilestone = new Map<number, SupplierGridScheduleInstance[]>();
+  const ungrouped: SupplierGridScheduleInstance[] = [];
 
   for (const inst of instances) {
     if (inst.kind === 'MILESTONE') {
@@ -99,77 +87,82 @@ function buildMilestoneGroups(instances: ScheduleInstanceExt[]) {
 export default function TrackingGrid() {
   const navigate = useNavigate();
   const { success, error: showError } = useToast();
-  const { data: projects, isLoading: projectsLoading } = useProjects();
-  const { data: templates } = useActivityTemplates();
+  const { data: suppliers, isLoading: suppliersLoading } = useSuppliers();
 
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  // --- Selector state ---
+  const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | undefined>(undefined);
   const [selectedActivityId, setSelectedActivityId] = useState<number | undefined>(undefined);
-  const [expandedSuppliers, setExpandedSuppliers] = useState<Set<number>>(new Set());
+
+  // --- Accordion expand state ---
+  const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
+  const [expandedActivities, setExpandedActivities] = useState<Set<string>>(new Set());
   const [expandedMilestones, setExpandedMilestones] = useState<Set<number>>(new Set());
+
+  // --- Selection state ---
   const [selectedInstances, setSelectedInstances] = useState<Set<number>>(new Set());
+
+  // --- Batch update state ---
   const [batchStatus, setBatchStatus] = useState<ActivityStatus>('Complete');
   const [batchDate, setBatchDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
+
+  // --- Notes editing state ---
   const [editingNotesId, setEditingNotesId] = useState<number | null>(null);
   const [notesText, setNotesText] = useState('');
+
+  // --- Override date state ---
   const [overrideDateId, setOverrideDateId] = useState<number | null>(null);
   const [overrideDateValue, setOverrideDateValue] = useState('');
 
-  const { data: gridData, isLoading: gridLoading } = useSupplierGrid(
-    selectedProjectId || 0,
+  // --- Data fetching ---
+  const { data: gridData, isLoading: gridLoading } = useSupplierGridBySupplier(
+    selectedSupplierId || 0,
+    selectedProjectId,
     selectedActivityId
   );
 
+  // --- Mutations ---
   const updateStatus = useUpdateInstanceStatus();
   const batchUpdateStatus = useBatchUpdateStatus();
   const updateNotes = useUpdateInstanceNotes();
   const toggleOverride = useToggleOverride();
   const toggleLock = useToggleLock();
 
-  // Group grid data by supplier
-  const supplierGroups = useMemo(() => {
+  // --- Derive project list for the project filter dropdown ---
+  const projectOptions = useMemo(() => {
     if (!gridData || !Array.isArray(gridData)) return [];
-
-    const groups = new Map<
-      number,
-      {
-        supplierId: number;
-        supplierName: string;
-        supplierProjectId: number;
-        activities: GridRow[];
-      }
-    >();
-
-    for (const row of gridData as GridRow[]) {
-      if (!groups.has(row.supplierId)) {
-        groups.set(row.supplierId, {
-          supplierId: row.supplierId,
-          supplierName: row.supplierName,
-          supplierProjectId: row.supplierProjectId,
-          activities: [],
-        });
-      }
-      groups.get(row.supplierId)!.activities.push({
-        ...row,
-        scheduleInstances: row.scheduleInstances.map((si: any) => ({
-          ...si,
-          itemName: si.itemName || `Item #${si.projectScheduleItemId}`,
-          kind: si.kind || 'TASK',
-          anchorType: si.anchorType || 'FIXED_DATE',
-          anchorRefId: si.anchorRefId ?? null,
-        })),
-      });
-    }
-
-    return Array.from(groups.values());
+    return gridData.map((p: SupplierGridProject) => ({
+      projectId: p.projectId,
+      projectName: p.projectName,
+    }));
   }, [gridData]);
 
-  function getSupplierStats(activities: GridRow[]) {
+  // --- Derive activity options for the activity filter dropdown (based on selected project) ---
+  const activityOptions = useMemo(() => {
+    if (!gridData || !Array.isArray(gridData) || !selectedProjectId) return [];
+    const project = gridData.find((p: SupplierGridProject) => p.projectId === selectedProjectId);
+    if (!project) return [];
+
+    const seen = new Map<number, string>();
+    for (const act of project.activities) {
+      if (!seen.has(act.activityTemplateId)) {
+        seen.set(act.activityTemplateId, act.activityName);
+      }
+    }
+    return Array.from(seen.entries()).map(([templateId, name]) => ({
+      activityTemplateId: templateId,
+      activityName: name,
+    }));
+  }, [gridData, selectedProjectId]);
+
+  // --- Stats helpers ---
+  function getProjectStats(project: SupplierGridProject) {
     let total = 0;
     let complete = 0;
     let overdue = 0;
-    for (const activity of activities) {
+    for (const activity of project.activities) {
       for (const inst of activity.scheduleInstances) {
         total++;
         if (inst.status === 'Complete') complete++;
@@ -179,11 +172,33 @@ export default function TrackingGrid() {
     return { total, complete, overdue };
   }
 
-  function toggleSupplier(supplierId: number) {
-    setExpandedSuppliers((prev) => {
+  function getActivityStats(activity: SupplierGridActivity) {
+    let total = 0;
+    let complete = 0;
+    let overdue = 0;
+    for (const inst of activity.scheduleInstances) {
+      total++;
+      if (inst.status === 'Complete') complete++;
+      if (isOverdue(inst)) overdue++;
+    }
+    return { total, complete, overdue };
+  }
+
+  // --- Toggle helpers ---
+  function toggleProject(projectId: number) {
+    setExpandedProjects((prev) => {
       const next = new Set(prev);
-      if (next.has(supplierId)) next.delete(supplierId);
-      else next.add(supplierId);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
+  }
+
+  function toggleActivity(key: string) {
+    setExpandedActivities((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
@@ -206,9 +221,14 @@ export default function TrackingGrid() {
     });
   }
 
-  function toggleAllInstances(instances: SupplierScheduleItemInstance[]) {
-    const ids = instances.map((i) => i.id);
-    const allSelected = ids.every((id) => selectedInstances.has(id));
+  function toggleAllProjectInstances(project: SupplierGridProject) {
+    const ids: number[] = [];
+    for (const activity of project.activities) {
+      for (const inst of activity.scheduleInstances) {
+        ids.push(inst.id);
+      }
+    }
+    const allSelected = ids.length > 0 && ids.every((id) => selectedInstances.has(id));
     setSelectedInstances((prev) => {
       const next = new Set(prev);
       if (allSelected) ids.forEach((id) => next.delete(id));
@@ -217,6 +237,7 @@ export default function TrackingGrid() {
     });
   }
 
+  // --- Action handlers ---
   async function handleStatusChange(instanceId: number, newStatus: ActivityStatus) {
     try {
       const actualDate =
@@ -292,7 +313,8 @@ export default function TrackingGrid() {
     }
   }
 
-  function renderItemRow(inst: ScheduleInstanceExt, indent: boolean) {
+  // --- Render a single schedule item row ---
+  function renderItemRow(inst: SupplierGridScheduleInstance, indent: boolean) {
     const overdueItem = isOverdue(inst);
     const isMilestone = inst.kind === 'MILESTONE';
 
@@ -421,7 +443,115 @@ export default function TrackingGrid() {
     );
   }
 
-  if (projectsLoading) return <LoadingSpinner />;
+  // --- Render activity schedule items with milestone grouping ---
+  function renderActivityItems(activity: SupplierGridActivity) {
+    const { milestones, tasksByMilestone, ungrouped } = buildMilestoneGroups(activity.scheduleInstances);
+    const rows: React.ReactNode[] = [];
+
+    for (const ms of milestones) {
+      const childTasks = tasksByMilestone.get(ms.projectScheduleItemId) || [];
+      const childComplete = childTasks.filter((t) => t.status === 'Complete').length;
+      const msExpanded = expandedMilestones.has(ms.projectScheduleItemId);
+
+      rows.push(
+        <TableRow
+          key={ms.id}
+          className={isOverdue(ms) ? 'bg-amber-50' : 'bg-muted/40 border-t-2'}
+        >
+          <TableCell>
+            <button onClick={() => toggleInstance(ms.id)} className="p-0.5">
+              {selectedInstances.has(ms.id) ? (
+                <CheckSquare className="w-4 h-4 text-primary" />
+              ) : (
+                <Square className="w-4 h-4 text-muted-foreground" />
+              )}
+            </button>
+          </TableCell>
+          <TableCell>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => toggleMilestone(ms.projectScheduleItemId)}
+                className="p-0.5 hover:bg-muted rounded"
+              >
+                {msExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              </button>
+              <span className="font-semibold">{ms.itemName}</span>
+              <span className="text-[10px] uppercase px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                Milestone
+              </span>
+              {childTasks.length > 0 && (
+                <span className="text-xs text-muted-foreground">[{childComplete}/{childTasks.length}]</span>
+              )}
+              {isOverdue(ms) && <Clock className="w-3.5 h-3.5 text-amber-600" />}
+              {!!ms.locked && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
+              {!!ms.plannedDateOverride && <Pencil className="w-3.5 h-3.5 text-blue-500" />}
+            </div>
+          </TableCell>
+          <TableCell>
+            <select
+              className="h-8 rounded border border-input bg-background px-2 text-xs"
+              value={ms.status}
+              onChange={(e) => handleStatusChange(ms.id, e.target.value as ActivityStatus)}
+            >
+              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </TableCell>
+          <TableCell>
+            {overrideDateId === ms.id ? (
+              <div className="flex items-center gap-1">
+                <input type="date" className="h-8 rounded border border-input bg-background px-2 text-xs" value={overrideDateValue} onChange={(e) => setOverrideDateValue(e.target.value)} />
+                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => handleSaveOverride(ms.id)}>Save</Button>
+                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setOverrideDateId(null)}>Cancel</Button>
+              </div>
+            ) : (
+              <span className={isOverdue(ms) ? 'text-amber-600 font-medium' : undefined}>
+                {formatDate(ms.plannedDate)}
+                {!!ms.plannedDateOverride && <span className="text-xs text-blue-500 ml-1">(override)</span>}
+              </span>
+            )}
+          </TableCell>
+          <TableCell>{formatDate(ms.actualDate)}</TableCell>
+          <TableCell>
+            {editingNotesId === ms.id ? (
+              <div className="flex items-center gap-1">
+                <input type="text" className="h-8 rounded border border-input bg-background px-2 text-xs flex-1" value={notesText} onChange={(e) => setNotesText(e.target.value)} placeholder="Add notes..." autoFocus onKeyDown={(e) => { if (e.key === 'Enter') handleSaveNotes(ms.id); if (e.key === 'Escape') setEditingNotesId(null); }} />
+                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => handleSaveNotes(ms.id)}>Save</Button>
+              </div>
+            ) : (
+              <button className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 max-w-[150px] truncate" onClick={() => { setEditingNotesId(ms.id); setNotesText(ms.notes || ''); }}>
+                {ms.notes ? <span className="truncate">{ms.notes}</span> : <><MessageSquare className="w-3 h-3" />Add note</>}
+              </button>
+            )}
+          </TableCell>
+          <TableCell>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" className="h-7 w-7" title={ms.locked ? 'Unlock' : 'Lock'} onClick={() => handleToggleLock(ms.id, ms.locked)}>
+                {ms.locked ? <Lock className="w-3.5 h-3.5" /> : <LockOpen className="w-3.5 h-3.5" />}
+              </Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7" title={ms.plannedDateOverride ? 'Remove date override' : 'Override date'} onClick={() => handleToggleOverride(ms.id, ms.plannedDateOverride)}>
+                <Pencil className={`w-3.5 h-3.5 ${ms.plannedDateOverride ? 'text-blue-500' : ''}`} />
+              </Button>
+            </div>
+          </TableCell>
+        </TableRow>
+      );
+
+      if (msExpanded) {
+        for (const task of childTasks) {
+          rows.push(renderItemRow(task, true));
+        }
+      }
+    }
+
+    for (const task of ungrouped) {
+      rows.push(renderItemRow(task, false));
+    }
+
+    return rows;
+  }
+
+  // --- Loading state ---
+  if (suppliersLoading) return <LoadingSpinner />;
 
   return (
     <div className="p-6 space-y-6">
@@ -429,32 +559,60 @@ export default function TrackingGrid() {
         <h1 className="text-3xl font-bold">Tracking Grid</h1>
       </div>
 
-      {/* Project & Activity Selectors */}
+      {/* Supplier, Project & Activity Selectors */}
       <div className="flex items-center gap-4">
+        {/* Supplier selector (required) */}
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-muted-foreground">Project</label>
+          <label className="text-sm font-medium text-muted-foreground">Supplier</label>
           <select
             className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-            value={selectedProjectId ?? ''}
+            value={selectedSupplierId ?? ''}
             onChange={(e) => {
               const val = e.target.value ? parseInt(e.target.value) : null;
-              setSelectedProjectId(val);
+              setSelectedSupplierId(val);
+              setSelectedProjectId(undefined);
               setSelectedActivityId(undefined);
-              setExpandedSuppliers(new Set());
+              setExpandedProjects(new Set());
+              setExpandedActivities(new Set());
               setExpandedMilestones(new Set());
               setSelectedInstances(new Set());
             }}
           >
-            <option value="">Select a project...</option>
-            {projects?.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+            <option value="">Select a supplier...</option>
+            {suppliers?.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
         </div>
 
-        {selectedProjectId && (
+        {/* Project filter (optional, shown after supplier selected) */}
+        {selectedSupplierId && (
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-muted-foreground">Activity Filter</label>
+            <label className="text-sm font-medium text-muted-foreground">Project</label>
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              value={selectedProjectId ?? ''}
+              onChange={(e) => {
+                const val = e.target.value ? parseInt(e.target.value) : undefined;
+                setSelectedProjectId(val);
+                setSelectedActivityId(undefined);
+                setExpandedActivities(new Set());
+                setExpandedMilestones(new Set());
+                setSelectedInstances(new Set());
+              }}
+            >
+              <option value="">All Projects</option>
+              {projectOptions.map((p) => (
+                <option key={p.projectId} value={p.projectId}>{p.projectName}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Activity filter (optional, shown after project selected) */}
+        {selectedSupplierId && selectedProjectId && (
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-muted-foreground">Activity</label>
             <select
               className="h-10 rounded-md border border-input bg-background px-3 text-sm"
               value={selectedActivityId ?? ''}
@@ -464,8 +622,8 @@ export default function TrackingGrid() {
               }}
             >
               <option value="">All Activities</option>
-              {templates?.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
+              {activityOptions.map((a) => (
+                <option key={a.activityTemplateId} value={a.activityTemplateId}>{a.activityName}</option>
               ))}
             </select>
           </div>
@@ -504,42 +662,47 @@ export default function TrackingGrid() {
       )}
 
       {/* Grid Content */}
-      {!selectedProjectId ? (
+      {!selectedSupplierId ? (
         <EmptyState
           icon={Grid3X3}
-          message="Select a project to view tracking grid"
-          description="Choose a project from the dropdown above to see all supplier schedule items."
+          message="Select a supplier to view tracking grid"
+          description="Choose a supplier from the dropdown above to see all their assigned projects and schedule items."
         />
       ) : gridLoading ? (
         <LoadingSpinner />
-      ) : supplierGroups.length === 0 ? (
+      ) : !gridData || gridData.length === 0 ? (
         <EmptyState
           icon={Grid3X3}
-          message="No suppliers assigned"
-          description="Apply this project to suppliers first, then track their progress here."
+          message="No projects assigned to this supplier"
+          description="Assign this supplier to projects first, then track their progress here."
         />
       ) : (
         <div className="space-y-3">
-          {supplierGroups.map((group) => {
-            const isExpanded = expandedSuppliers.has(group.supplierId);
-            const stats = getSupplierStats(group.activities);
-            const allInstances = group.activities.flatMap((a) => a.scheduleInstances);
+          {gridData.map((project: SupplierGridProject) => {
+            const isProjectExpanded = expandedProjects.has(project.projectId);
+            const stats = getProjectStats(project);
+            const allProjectInstances: SupplierGridScheduleInstance[] = [];
+            for (const activity of project.activities) {
+              for (const inst of activity.scheduleInstances) {
+                allProjectInstances.push(inst);
+              }
+            }
             const allSelected =
-              allInstances.length > 0 &&
-              allInstances.every((i) => selectedInstances.has(i.id));
+              allProjectInstances.length > 0 &&
+              allProjectInstances.every((i) => selectedInstances.has(i.id));
 
             return (
-              <div key={group.supplierId} className="border rounded-lg overflow-hidden">
-                {/* Supplier Header */}
+              <div key={project.projectId} className="border rounded-lg overflow-hidden">
+                {/* Level 1: Project Header */}
                 <div
                   className="flex items-center gap-3 p-3 bg-muted/50 cursor-pointer hover:bg-muted"
-                  onClick={() => toggleSupplier(group.supplierId)}
+                  onClick={() => toggleProject(project.projectId)}
                 >
                   <button
                     className="p-0.5"
                     onClick={(e) => {
                       e.stopPropagation();
-                      toggleAllInstances(allInstances);
+                      toggleAllProjectInstances(project);
                     }}
                   >
                     {allSelected ? (
@@ -549,13 +712,13 @@ export default function TrackingGrid() {
                     )}
                   </button>
 
-                  {isExpanded ? (
+                  {isProjectExpanded ? (
                     <ChevronDown className="w-4 h-4" />
                   ) : (
                     <ChevronRight className="w-4 h-4" />
                   )}
 
-                  <span className="font-semibold">{group.supplierName}</span>
+                  <span className="font-semibold">{project.projectName}</span>
 
                   <span className="text-sm text-muted-foreground ml-2">
                     {stats.complete}/{stats.total} Complete
@@ -586,7 +749,7 @@ export default function TrackingGrid() {
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/supplier-projects/${group.supplierId}/${selectedProjectId}`);
+                        navigate(`/supplier-projects/${selectedSupplierId}/${project.projectId}`);
                       }}
                     >
                       <ExternalLink className="w-4 h-4" />
@@ -594,132 +757,64 @@ export default function TrackingGrid() {
                   </div>
                 </div>
 
-                {/* Expanded Schedule Items */}
-                {isExpanded && (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-10"></TableHead>
-                        <TableHead>Item</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Planned Date</TableHead>
-                        <TableHead>Actual Date</TableHead>
-                        <TableHead>Notes</TableHead>
-                        <TableHead className="w-32">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(() => {
-                        const allItems = group.activities.flatMap((a) => a.scheduleInstances);
-                        const { milestones, tasksByMilestone, ungrouped } = buildMilestoneGroups(allItems);
-                        const rows: React.ReactNode[] = [];
+                {/* Level 2: Activities within the expanded project */}
+                {isProjectExpanded && (
+                  <div>
+                    {project.activities.map((activity) => {
+                      const activityKey = `${project.projectId}-${activity.activityInstanceId}`;
+                      const isActivityExpanded = expandedActivities.has(activityKey);
+                      const actStats = getActivityStats(activity);
 
-                        for (const ms of milestones) {
-                          const childTasks = tasksByMilestone.get(ms.projectScheduleItemId) || [];
-                          const childComplete = childTasks.filter((t) => t.status === 'Complete').length;
-                          const msExpanded = expandedMilestones.has(ms.projectScheduleItemId);
+                      return (
+                        <div key={activityKey}>
+                          {/* Activity sub-header */}
+                          <div
+                            className="flex items-center gap-3 px-4 py-2 pl-10 bg-muted/25 cursor-pointer hover:bg-muted/40 border-t"
+                            onClick={() => toggleActivity(activityKey)}
+                          >
+                            {isActivityExpanded ? (
+                              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+                            )}
 
-                          // Milestone header row — render inline with child count
-                          rows.push(
-                            <TableRow
-                              key={ms.id}
-                              className={isOverdue(ms) ? 'bg-amber-50' : 'bg-muted/40 border-t-2'}
-                            >
-                              <TableCell>
-                                <button onClick={() => toggleInstance(ms.id)} className="p-0.5">
-                                  {selectedInstances.has(ms.id) ? (
-                                    <CheckSquare className="w-4 h-4 text-primary" />
-                                  ) : (
-                                    <Square className="w-4 h-4 text-muted-foreground" />
-                                  )}
-                                </button>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => toggleMilestone(ms.projectScheduleItemId)}
-                                    className="p-0.5 hover:bg-muted rounded"
-                                  >
-                                    {msExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                                  </button>
-                                  <span className="font-semibold">{ms.itemName}</span>
-                                  <span className="text-[10px] uppercase px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                                    Milestone
-                                  </span>
-                                  {childTasks.length > 0 && (
-                                    <span className="text-xs text-muted-foreground">[{childComplete}/{childTasks.length}]</span>
-                                  )}
-                                  {isOverdue(ms) && <Clock className="w-3.5 h-3.5 text-amber-600" />}
-                                  {!!ms.locked && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
-                                  {!!ms.plannedDateOverride && <Pencil className="w-3.5 h-3.5 text-blue-500" />}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <select
-                                  className="h-8 rounded border border-input bg-background px-2 text-xs"
-                                  value={ms.status}
-                                  onChange={(e) => handleStatusChange(ms.id, e.target.value as ActivityStatus)}
-                                >
-                                  {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                              </TableCell>
-                              <TableCell>
-                                {overrideDateId === ms.id ? (
-                                  <div className="flex items-center gap-1">
-                                    <input type="date" className="h-8 rounded border border-input bg-background px-2 text-xs" value={overrideDateValue} onChange={(e) => setOverrideDateValue(e.target.value)} />
-                                    <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => handleSaveOverride(ms.id)}>Save</Button>
-                                    <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setOverrideDateId(null)}>Cancel</Button>
-                                  </div>
-                                ) : (
-                                  <span className={isOverdue(ms) ? 'text-amber-600 font-medium' : undefined}>
-                                    {formatDate(ms.plannedDate)}
-                                    {!!ms.plannedDateOverride && <span className="text-xs text-blue-500 ml-1">(override)</span>}
-                                  </span>
-                                )}
-                              </TableCell>
-                              <TableCell>{formatDate(ms.actualDate)}</TableCell>
-                              <TableCell>
-                                {editingNotesId === ms.id ? (
-                                  <div className="flex items-center gap-1">
-                                    <input type="text" className="h-8 rounded border border-input bg-background px-2 text-xs flex-1" value={notesText} onChange={(e) => setNotesText(e.target.value)} placeholder="Add notes..." autoFocus onKeyDown={(e) => { if (e.key === 'Enter') handleSaveNotes(ms.id); if (e.key === 'Escape') setEditingNotesId(null); }} />
-                                    <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => handleSaveNotes(ms.id)}>Save</Button>
-                                  </div>
-                                ) : (
-                                  <button className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 max-w-[150px] truncate" onClick={() => { setEditingNotesId(ms.id); setNotesText(ms.notes || ''); }}>
-                                    {ms.notes ? <span className="truncate">{ms.notes}</span> : <><MessageSquare className="w-3 h-3" />Add note</>}
-                                  </button>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1">
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" title={ms.locked ? 'Unlock' : 'Lock'} onClick={() => handleToggleLock(ms.id, ms.locked)}>
-                                    {ms.locked ? <Lock className="w-3.5 h-3.5" /> : <LockOpen className="w-3.5 h-3.5" />}
-                                  </Button>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" title={ms.plannedDateOverride ? 'Remove date override' : 'Override date'} onClick={() => handleToggleOverride(ms.id, ms.plannedDateOverride)}>
-                                    <Pencil className={`w-3.5 h-3.5 ${ms.plannedDateOverride ? 'text-blue-500' : ''}`} />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
+                            <span className="font-medium text-sm">{activity.activityName}</span>
 
-                          // Child task rows
-                          if (msExpanded) {
-                            for (const task of childTasks) {
-                              rows.push(renderItemRow(task, true));
-                            }
-                          }
-                        }
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {actStats.complete}/{actStats.total} Complete
+                            </span>
 
-                        // Ungrouped tasks
-                        for (const task of ungrouped) {
-                          rows.push(renderItemRow(task, false));
-                        }
+                            {actStats.overdue > 0 && (
+                              <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                                <Clock className="w-3 h-3" />
+                                {actStats.overdue} Overdue
+                              </span>
+                            )}
+                          </div>
 
-                        return rows;
-                      })()}
-                    </TableBody>
-                  </Table>
+                          {/* Level 3: Schedule item rows within the expanded activity */}
+                          {isActivityExpanded && (
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="w-10"></TableHead>
+                                  <TableHead>Item</TableHead>
+                                  <TableHead>Status</TableHead>
+                                  <TableHead>Planned Date</TableHead>
+                                  <TableHead>Actual Date</TableHead>
+                                  <TableHead>Notes</TableHead>
+                                  <TableHead className="w-32">Actions</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {renderActivityItems(activity)}
+                              </TableBody>
+                            </Table>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             );
