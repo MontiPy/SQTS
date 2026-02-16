@@ -13,6 +13,15 @@ function emitChange() {
   listeners.forEach((listener) => listener([...toasts]));
 }
 
+export function subscribeToToasts(callback: (toasts: Toast[]) => void): () => void {
+  listeners.push(callback);
+  callback([...toasts]);
+  return () => {
+    const index = listeners.indexOf(callback);
+    if (index > -1) listeners.splice(index, 1);
+  };
+}
+
 function toastFn(message: string, type: 'success' | 'error' | 'info' = 'info') {
   const id = Math.random().toString(36).substr(2, 9);
   const newToast: Toast = { id, message, type };

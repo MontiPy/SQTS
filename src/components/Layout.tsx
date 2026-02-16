@@ -2,6 +2,7 @@ import { ReactNode, useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import Breadcrumb from './Breadcrumb';
 import CommandPalette from './CommandPalette';
+import Toaster from './ui/toaster';
 
 interface LayoutProps {
   children: ReactNode;
@@ -36,6 +37,7 @@ export default function Layout({ children }: LayoutProps) {
         isOpen={showCommandPalette}
         onClose={() => setShowCommandPalette(false)}
       />
+      <Toaster />
     </div>
   );
 }

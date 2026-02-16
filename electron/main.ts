@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 console.log('[SQTS] __dirname resolved to:', __dirname);
 
 let mainWindow: BrowserWindow | null = null;
+let isQuitting = false;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -95,10 +96,16 @@ app.on('window-all-closed', () => {
   }
 });
 
-// Save database before quit
+// Save database before quit (flag prevents re-entry during async cleanup)
 app.on('before-quit', async (e) => {
+  if (isQuitting) return;
   e.preventDefault();
-  await saveDatabaseImmediately();
-  await closeDatabase();
+  isQuitting = true;
+  try {
+    await saveDatabaseImmediately();
+    await closeDatabase();
+  } catch (error) {
+    console.error('[SQTS] Error during shutdown cleanup:', error);
+  }
   app.exit(0);
 });

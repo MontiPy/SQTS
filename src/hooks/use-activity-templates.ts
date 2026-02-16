@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { ActivityTemplate, ActivityTemplateScheduleItem, APIResponse } from '@shared/types';
+import type { ActivityTemplate, ActivityTemplateScheduleItem, AnchorType, APIResponse } from '@shared/types';
 
 export function useActivityTemplates() {
   return useQuery<ActivityTemplate[]>({
@@ -128,7 +128,7 @@ interface CreateTemplateScheduleItemParams {
   activityTemplateId: number;
   kind: 'MILESTONE' | 'TASK';
   name: string;
-  anchorType: string;
+  anchorType: AnchorType;
   anchorRefId?: number | null;
   anchorMilestoneName?: string | null;
   offsetDays?: number | null;
@@ -158,7 +158,7 @@ interface UpdateTemplateScheduleItemParams {
   templateId?: number;
   kind?: 'MILESTONE' | 'TASK';
   name?: string;
-  anchorType?: string;
+  anchorType?: AnchorType;
   anchorRefId?: number | null;
   anchorMilestoneName?: string | null;
   offsetDays?: number | null;

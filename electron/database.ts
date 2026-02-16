@@ -126,30 +126,50 @@ let transactionDepth = 0;
 export function beginTransaction(): void {
   if (!db) throw new Error('Database not initialized');
   if (transactionDepth === 0) {
-    db.run('BEGIN TRANSACTION');
+    try {
+      db.run('BEGIN TRANSACTION');
+    } catch (error) {
+      transactionDepth = 0;
+      throw error;
+    }
   }
   transactionDepth++;
 }
 
 export function commitTransaction(): void {
   if (!db) throw new Error('Database not initialized');
+  if (transactionDepth <= 0) {
+    transactionDepth = 0;
+    throw new Error('No active transaction to commit');
+  }
   transactionDepth--;
   if (transactionDepth === 0) {
-    db.run('COMMIT');
-    // Re-enforce foreign keys after transaction (sql.js safety measure)
-    db.run('PRAGMA foreign_keys = ON');
-    saveDatabaseImmediately();
+    try {
+      db.run('COMMIT');
+      db.run('PRAGMA foreign_keys = ON');
+      saveDatabaseImmediately();
+    } catch (error) {
+      transactionDepth = 0;
+      throw error;
+    }
   }
 }
 
 export function rollbackTransaction(): void {
   if (!db) throw new Error('Database not initialized');
+  if (transactionDepth <= 0) {
+    transactionDepth = 0;
+    return; // Nothing to rollback
+  }
   transactionDepth--;
   if (transactionDepth === 0) {
-    db.run('ROLLBACK');
-    // Re-enforce foreign keys after transaction (sql.js safety measure)
-    db.run('PRAGMA foreign_keys = ON');
-    // Do NOT save after rollback - in-memory state is already correct
+    try {
+      db.run('ROLLBACK');
+      db.run('PRAGMA foreign_keys = ON');
+    } catch (error) {
+      transactionDepth = 0;
+      throw error;
+    }
   }
 }
 

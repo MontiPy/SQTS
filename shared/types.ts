@@ -501,3 +501,285 @@ export interface SearchResult {
   type: 'supplier' | 'project' | 'activity-template' | 'project-template' | 'part';
   subtitle?: string;
 }
+
+// ============================================================
+// IPC Input Parameter Types (used by preload API surface)
+// ============================================================
+
+// --- Supplier Params ---
+
+export interface SearchSuppliersParams {
+  search?: string;
+  nmrRank?: string | null;
+}
+
+export interface CreateSupplierParams {
+  name: string;
+  notes?: string | null;
+  nmrRank?: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+}
+
+export interface UpdateSupplierParams {
+  name?: string;
+  notes?: string | null;
+  nmrRank?: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+}
+
+// --- Project Params ---
+
+export interface CreateProjectParams {
+  name: string;
+  version?: string;
+  defaultAnchorRule?: string | null;
+}
+
+export interface UpdateProjectParams {
+  name?: string;
+  version?: string;
+  defaultAnchorRule?: string | null;
+}
+
+// --- Milestone Params ---
+
+export interface CreateMilestoneParams {
+  projectId: number;
+  name: string;
+  date?: string | null;
+  category?: string | null;
+  sortOrder?: number;
+}
+
+export interface UpdateMilestoneParams {
+  name?: string;
+  date?: string | null;
+  category?: string | null;
+  sortOrder?: number;
+}
+
+// --- Activity Template Params ---
+
+export interface CreateActivityTemplateParams {
+  name: string;
+  description?: string | null;
+  category?: string | null;
+}
+
+export interface UpdateActivityTemplateParams {
+  name?: string;
+  description?: string | null;
+  category?: string | null;
+}
+
+// --- Template Schedule Item Params ---
+
+export interface CreateTemplateScheduleItemParams {
+  activityTemplateId: number;
+  kind: ScheduleItemKind;
+  name: string;
+  anchorType: AnchorType;
+  anchorRefId?: number | null;
+  anchorMilestoneName?: string | null;
+  offsetDays?: number | null;
+  fixedDate?: string | null;
+  sortOrder?: number;
+}
+
+export interface UpdateTemplateScheduleItemParams {
+  kind?: ScheduleItemKind;
+  name?: string;
+  anchorType?: AnchorType;
+  anchorRefId?: number | null;
+  anchorMilestoneName?: string | null;
+  offsetDays?: number | null;
+  fixedDate?: string | null;
+  sortOrder?: number;
+}
+
+// --- Applicability Rule Params ---
+
+export interface CreateApplicabilityRuleParams {
+  activityTemplateId: number;
+  operator: ApplicabilityOperator;
+  enabled?: boolean;
+}
+
+export interface UpdateApplicabilityRuleParams {
+  operator?: ApplicabilityOperator;
+  enabled?: boolean;
+}
+
+// --- Applicability Clause Params ---
+
+export interface CreateApplicabilityClauseParams {
+  ruleId: number;
+  subjectType: ApplicabilitySubject;
+  comparator: ApplicabilityComparator;
+  value: string;
+}
+
+export interface UpdateApplicabilityClauseParams {
+  subjectType?: ApplicabilitySubject;
+  comparator?: ApplicabilityComparator;
+  value?: string;
+}
+
+// --- Project Activity Params ---
+
+export interface AddProjectActivityParams {
+  projectId: number;
+  activityTemplateId: number;
+}
+
+// --- Supplier Instance Params ---
+
+export interface ApplyProjectParams {
+  projectId: number;
+  supplierId: number;
+  activityIds?: number[];
+}
+
+export interface UpdateInstanceStatusParams {
+  instanceId: number;
+  status: ActivityStatus;
+  completionDate?: string | null;
+  notes?: string | null;
+}
+
+export interface BatchUpdateStatusParams {
+  instanceIds: number[];
+  status: ActivityStatus;
+  completionDate?: string | null;
+}
+
+export interface UpdateInstanceNotesParams {
+  instanceId: number;
+  notes: string | null;
+}
+
+export interface ToggleApplicabilityParams {
+  supplierId: number;
+  activityId: number;
+  projectId: number;
+  include: boolean;
+}
+
+// --- Propagation Params ---
+
+export interface ApplyPropagationParams {
+  projectId: number;
+  selectedSupplierIds?: number[] | null;
+}
+
+// --- Dashboard Params ---
+
+export interface DashboardFilterParams {
+  supplierId?: number;
+  projectId?: number;
+}
+
+// --- Import/Export Params ---
+
+export interface ExportParams {
+  includeSuppliers?: boolean;
+  includeProjects?: boolean;
+  includeTemplates?: boolean;
+  includeInstances?: boolean;
+}
+
+export interface ImportParams {
+  data: {
+    suppliers?: unknown[];
+    projects?: unknown[];
+    activityTemplates?: unknown[];
+  };
+  mode?: 'MERGE' | 'REPLACE';
+}
+
+// --- Settings Params ---
+
+export interface UpdateSettingParams {
+  key: string;
+  value: string | boolean | string[];
+}
+
+// --- Parts & Location Codes Params ---
+
+export interface CreatePartParams {
+  supplierProjectId: number;
+  locationCodeId?: number | null;
+  partNumber: string;
+  description?: string | null;
+  paRank?: string | null;
+}
+
+export interface UpdatePartParams {
+  locationCodeId?: number | null;
+  partNumber?: string;
+  description?: string | null;
+  paRank?: string | null;
+}
+
+export interface CreateLocationCodeParams {
+  supplierId: number;
+  supplierNumber: string;
+  locationCode: string;
+}
+
+export interface UpdateLocationCodeParams {
+  supplierNumber?: string;
+  locationCode?: string;
+}
+
+// --- Project Template Params ---
+
+export interface CreateProjectTemplateParams {
+  name: string;
+  description?: string | null;
+}
+
+export interface UpdateProjectTemplateParams {
+  name?: string;
+  description?: string | null;
+  milestones?: Array<{
+    category?: string | null;
+    name: string;
+    sortOrder?: number;
+  }>;
+  activities?: Array<{
+    activityTemplateId: number;
+    sortOrder?: number;
+  }>;
+}
+
+export interface ApplyProjectTemplateParams {
+  projectTemplateId: number;
+  projectId: number;
+}
+
+// --- Milestone Grid Params ---
+
+export interface MilestoneGridUpdateParams {
+  updates: Array<{ milestoneId: number; date: string | null }>;
+}
+
+// --- Supplier Milestone Grid Params ---
+
+export interface SupplierMilestoneGridUpdateParams {
+  updates: Array<{
+    supplierProjectId: number;
+    milestoneId: number;
+    date: string | null;
+  }>;
+}
+
+export interface SupplierMilestoneGridFillRowParams {
+  projectId: number;
+  milestoneId: number;
+  date: string;
+}
