@@ -152,6 +152,12 @@ export function registerPropagationHandlers() {
         return createErrorResponse('No suppliers found for this project');
       }
 
+      // Build item names map from already-fetched projectScheduleItems (avoids N+1)
+      const itemNamesMap = new Map<number, string>();
+      for (const psi of projectScheduleItems) {
+        itemNamesMap.set(psi.id, psi.name);
+      }
+
       // Build supplier data for propagation engine
       const suppliersData: SupplierPropagationData[] = [];
 
@@ -165,24 +171,12 @@ export function registerPropagationHandlers() {
           [sp.id]
         );
 
-        // Build item names map
-        const itemNames = new Map<number, string>();
-        for (const instance of instances) {
-          const item = queryOne<{ name: string }>(
-            'SELECT name FROM project_schedule_items WHERE id = ?',
-            [instance.projectScheduleItemId]
-          );
-          if (item) {
-            itemNames.set(instance.projectScheduleItemId, item.name);
-          }
-        }
-
         suppliersData.push({
           supplierProjectId: sp.id,
           supplierId: sp.supplierId,
           supplierName: sp.supplierName,
           instances,
-          itemNames,
+          itemNames: itemNamesMap,
         });
       }
 
@@ -265,6 +259,12 @@ export function registerPropagationHandlers() {
           [validated.projectId]
         );
 
+        // Build item names map from already-fetched projectScheduleItems (avoids N+1)
+        const itemNamesMap = new Map<number, string>();
+        for (const psi of projectScheduleItems) {
+          itemNamesMap.set(psi.id, psi.name);
+        }
+
         const suppliersData: SupplierPropagationData[] = [];
 
         for (const sp of supplierProjects) {
@@ -276,23 +276,12 @@ export function registerPropagationHandlers() {
             [sp.id]
           );
 
-          const itemNames = new Map<number, string>();
-          for (const instance of instances) {
-            const item = queryOne<{ name: string }>(
-              'SELECT name FROM project_schedule_items WHERE id = ?',
-              [instance.projectScheduleItemId]
-            );
-            if (item) {
-              itemNames.set(instance.projectScheduleItemId, item.name);
-            }
-          }
-
           suppliersData.push({
             supplierProjectId: sp.id,
             supplierId: sp.supplierId,
             supplierName: sp.supplierName,
             instances,
-            itemNames,
+            itemNames: itemNamesMap,
           });
         }
 

@@ -106,9 +106,9 @@ export function useUpdateInstanceStatus() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
       queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
-      queryClient.invalidateQueries({ queryKey: ['supplier-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-grid'], refetchType: 'none' });
+      queryClient.invalidateQueries({ queryKey: ['supplier-projects'], refetchType: 'none' });
     },
   });
 }
@@ -132,9 +132,9 @@ export function useBatchUpdateStatus() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
       queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
-      queryClient.invalidateQueries({ queryKey: ['supplier-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-grid'], refetchType: 'none' });
+      queryClient.invalidateQueries({ queryKey: ['supplier-projects'], refetchType: 'none' });
     },
   });
 }
@@ -157,9 +157,9 @@ export function useUpdateInstanceNotes() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
       queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
-      queryClient.invalidateQueries({ queryKey: ['supplier-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-grid'], refetchType: 'none' });
+      queryClient.invalidateQueries({ queryKey: ['supplier-projects'], refetchType: 'none' });
     },
   });
 }
@@ -183,9 +183,9 @@ export function useToggleOverride() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
       queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
-      queryClient.invalidateQueries({ queryKey: ['supplier-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-grid'], refetchType: 'none' });
+      queryClient.invalidateQueries({ queryKey: ['supplier-projects'], refetchType: 'none' });
     },
   });
 }
@@ -208,9 +208,9 @@ export function useToggleLock() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
       queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
-      queryClient.invalidateQueries({ queryKey: ['supplier-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-grid'], refetchType: 'none' });
+      queryClient.invalidateQueries({ queryKey: ['supplier-projects'], refetchType: 'none' });
     },
   });
 }

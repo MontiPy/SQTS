@@ -813,19 +813,38 @@ export function registerSupplierInstanceHandlers() {
         [projectId]
       );
 
-      // Fetch rules and clauses for each template
+      // Batch fetch all rules and clauses (avoids N+1 queries)
+      const templateIds = projectActivities.map(pa => pa.activityTemplateId);
+      const placeholders = templateIds.map(() => '?').join(',');
+
+      const allRules = templateIds.length > 0
+        ? query<{ id: number; activityTemplateId: number; operator: string; enabled: number; createdAt: string }>(
+            `SELECT * FROM activity_template_applicability_rules WHERE activity_template_id IN (${placeholders})`,
+            templateIds
+          )
+        : [];
+
+      const ruleIds = allRules.map(r => r.id);
+      const rulePlaceholders = ruleIds.map(() => '?').join(',');
+
+      const allClauses = ruleIds.length > 0
+        ? query<any>(
+            `SELECT * FROM activity_template_applicability_clauses WHERE rule_id IN (${rulePlaceholders})`,
+            ruleIds
+          )
+        : [];
+
+      // Index by templateId and ruleId
+      const rulesByTemplate = new Map(allRules.map(r => [r.activityTemplateId, r]));
+      const clausesByRule = new Map<number, any[]>();
+      for (const clause of allClauses) {
+        if (!clausesByRule.has(clause.ruleId)) clausesByRule.set(clause.ruleId, []);
+        clausesByRule.get(clause.ruleId)!.push(clause);
+      }
+
       const templates = projectActivities.map(pa => {
-        const rule = queryOne<{ id: number; activityTemplateId: number; operator: string; enabled: number; createdAt: string }>(
-          'SELECT * FROM activity_template_applicability_rules WHERE activity_template_id = ?',
-          [pa.activityTemplateId]
-        );
-        let clauses: any[] = [];
-        if (rule) {
-          clauses = query(
-            'SELECT * FROM activity_template_applicability_clauses WHERE rule_id = ?',
-            [rule.id]
-          );
-        }
+        const rule = rulesByTemplate.get(pa.activityTemplateId) || null;
+        const clauses = rule ? (clausesByRule.get(rule.id) || []) : [];
         return {
           templateId: pa.activityTemplateId,
           rule: rule ? { ...rule, enabled: !!rule.enabled } as any : null,
