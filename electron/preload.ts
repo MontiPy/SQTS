@@ -125,6 +125,7 @@ const api = {
     applyProject: (params: ApplyProjectParams) => ipcRenderer.invoke('supplier-instances:apply-project', params),
     removeProject: (projectId: number, supplierId: number) => ipcRenderer.invoke('supplier-instances:remove-project', projectId, supplierId),
     getGrid: (projectId: number, activityId?: number) => ipcRenderer.invoke('supplier-instances:get-grid', projectId, activityId),
+    getSupplierGrid: (supplierId: number, projectId?: number, activityId?: number) => ipcRenderer.invoke('supplier-instances:get-supplier-grid', supplierId, projectId, activityId),
     updateStatus: (params: UpdateInstanceStatusParams) => ipcRenderer.invoke('supplier-instances:update-status', params),
     batchUpdateStatus: (params: BatchUpdateStatusParams) => ipcRenderer.invoke('supplier-instances:batch-update-status', params),
     updateNotes: (params: UpdateInstanceNotesParams) => ipcRenderer.invoke('supplier-instances:update-notes', params),

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
   SupplierProject,
   SupplierScheduleItemInstance,
+  SupplierGridProject,
   ActivityStatus,
   APIResponse
 } from '@shared/types';
@@ -70,6 +71,21 @@ export function useSupplierGrid(projectId: number, activityId?: number) {
   });
 }
 
+// Supplier Grid - supplier-first tracking (grouped by project -> activity -> instances)
+export function useSupplierGridBySupplier(supplierId: number, projectId?: number, activityId?: number) {
+  return useQuery<SupplierGridProject[]>({
+    queryKey: ['supplier-grid-by-supplier', supplierId, projectId, activityId],
+    queryFn: async () => {
+      const response: APIResponse<SupplierGridProject[]> = await window.sqts.supplierInstances.getSupplierGrid(supplierId, projectId, activityId);
+      if (!response.success || !response.data) {
+        throw new Error(response.error || 'Failed to fetch supplier grid');
+      }
+      return response.data;
+    },
+    enabled: !!supplierId,
+  });
+}
+
 // Update instance status
 interface UpdateInstanceStatusParams {
   instanceId: number;
@@ -91,6 +107,7 @@ export function useUpdateInstanceStatus() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
       queryClient.invalidateQueries({ queryKey: ['supplier-projects'] });
     },
   });
@@ -116,6 +133,7 @@ export function useBatchUpdateStatus() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
       queryClient.invalidateQueries({ queryKey: ['supplier-projects'] });
     },
   });
@@ -140,6 +158,7 @@ export function useUpdateInstanceNotes() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
       queryClient.invalidateQueries({ queryKey: ['supplier-projects'] });
     },
   });
@@ -165,6 +184,7 @@ export function useToggleOverride() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
       queryClient.invalidateQueries({ queryKey: ['supplier-projects'] });
     },
   });
@@ -189,6 +209,7 @@ export function useToggleLock() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
       queryClient.invalidateQueries({ queryKey: ['supplier-projects'] });
     },
   });
