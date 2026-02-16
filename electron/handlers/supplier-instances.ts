@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { query, queryOne, run, withTransaction } from '../database';
 import { createSuccessResponse, createErrorResponse, createAuditEvent } from './shared';
 import { calculateScheduleDates } from '../scheduler';
+import { evaluateMultipleTemplates } from '../engine/applicability';
 import type {
   SupplierProject,
   SupplierActivityInstance,
@@ -752,6 +753,86 @@ export function registerSupplierInstanceHandlers() {
       }
 
       return createSuccessResponse(Array.from(projectMap.values()));
+    } catch (error: any) {
+      return createErrorResponse(error.message);
+    }
+  });
+
+  // Evaluate applicability rules for all project activities against a supplier
+  ipcMain.handle('supplier-instances:evaluate-applicability', async (_, projectId: number, supplierId: number) => {
+    try {
+      // Get supplier NMR rank (with project-level override)
+      const supplierProject = queryOne<{ supplierProjectNmrRank: string | null; id: number }>(
+        'SELECT id, supplier_project_nmr_rank FROM supplier_projects WHERE project_id = ? AND supplier_id = ?',
+        [projectId, supplierId]
+      );
+      const supplier = queryOne<{ nmrRank: string | null }>(
+        'SELECT nmr_rank FROM suppliers WHERE id = ?',
+        [supplierId]
+      );
+      const supplierNmrRank = supplierProject?.supplierProjectNmrRank || supplier?.nmrRank || null;
+
+      // Get parts PA ranks for this supplier-project combo
+      let partPaRanks: string[] = [];
+      if (supplierProject) {
+        const parts = query<{ paRank: string | null }>(
+          'SELECT pa_rank FROM parts WHERE supplier_project_id = ?',
+          [supplierProject.id]
+        );
+        partPaRanks = parts.map(p => p.paRank).filter((r): r is string => r != null);
+      }
+
+      const context = { supplierNmrRank, partPaRanks };
+
+      // Get rank ordering from settings
+      const nmrSetting = queryOne<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['nmr_ranks']);
+      const rankOrder: string[] = nmrSetting ? JSON.parse(nmrSetting.value) : [];
+
+      // Get all project activities with their template info
+      const projectActivities = query<{
+        id: number;
+        activityTemplateId: number;
+        templateName: string;
+      }>(
+        `SELECT pa.id, pa.activity_template_id, at.name as template_name
+         FROM project_activities pa
+         JOIN activity_templates at ON pa.activity_template_id = at.id
+         WHERE pa.project_id = ?`,
+        [projectId]
+      );
+
+      // Fetch rules and clauses for each template
+      const templates = projectActivities.map(pa => {
+        const rule = queryOne<{ id: number; activityTemplateId: number; operator: string; enabled: number; createdAt: string }>(
+          'SELECT * FROM activity_template_applicability_rules WHERE activity_template_id = ?',
+          [pa.activityTemplateId]
+        );
+        let clauses: any[] = [];
+        if (rule) {
+          clauses = query(
+            'SELECT * FROM activity_template_applicability_clauses WHERE rule_id = ?',
+            [rule.id]
+          );
+        }
+        return {
+          templateId: pa.activityTemplateId,
+          rule: rule ? { ...rule, enabled: !!rule.enabled } as any : null,
+          clauses,
+        };
+      });
+
+      const results = evaluateMultipleTemplates(templates, context, rankOrder);
+
+      // Build response
+      const response = projectActivities.map(pa => ({
+        projectActivityId: pa.id,
+        activityTemplateId: pa.activityTemplateId,
+        templateName: pa.templateName,
+        applicable: results.get(pa.activityTemplateId) ?? true,
+        hasRule: templates.find(t => t.templateId === pa.activityTemplateId)?.rule != null,
+      }));
+
+      return createSuccessResponse(response);
     } catch (error: any) {
       return createErrorResponse(error.message);
     }

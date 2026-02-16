@@ -155,3 +155,28 @@ export function useDeleteApplicabilityClause() {
     },
   });
 }
+
+// --- Evaluation hook ---
+
+export interface ApplicabilityResult {
+  projectActivityId: number;
+  activityTemplateId: number;
+  templateName: string;
+  applicable: boolean;
+  hasRule: boolean;
+}
+
+export function useEvaluateApplicability(projectId: number, supplierId: number | null) {
+  return useQuery<ApplicabilityResult[]>({
+    queryKey: ['evaluate-applicability', projectId, supplierId],
+    queryFn: async () => {
+      const response: APIResponse<ApplicabilityResult[]> =
+        await window.sqts.supplierInstances.evaluateApplicability(projectId, supplierId!);
+      if (!response.success || !response.data) {
+        throw new Error(response.error || 'Failed to evaluate applicability');
+      }
+      return response.data;
+    },
+    enabled: !!projectId && !!supplierId,
+  });
+}
