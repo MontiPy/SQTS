@@ -183,6 +183,8 @@ export default function SupplierProjectDetail() {
         });
       }
       queryClient.invalidateQueries({ queryKey: ['supplier-projects', supplierId, projectId] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
       success(`Removed ${nonMatchingActivities.length} non-matching activities`);
       setShowReeval(false);
     } catch (err) {
