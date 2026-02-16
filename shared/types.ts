@@ -783,3 +783,44 @@ export interface SupplierMilestoneGridFillRowParams {
   milestoneId: number;
   date: string;
 }
+
+// --- Supplier Grid (supplier-first tracking) ---
+
+export interface SupplierGridParams {
+  supplierId: number;
+  projectId?: number;
+  activityId?: number;
+}
+
+export interface SupplierGridProject {
+  projectId: number;
+  projectName: string;
+  supplierProjectId: number;
+  activities: SupplierGridActivity[];
+}
+
+export interface SupplierGridActivity {
+  activityInstanceId: number;
+  projectActivityId: number;
+  activityName: string;
+  activityTemplateId: number;
+  scheduleInstances: SupplierGridScheduleInstance[];
+}
+
+export interface SupplierGridScheduleInstance {
+  id: number;
+  supplierActivityInstanceId: number;
+  projectScheduleItemId: number;
+  plannedDate: string | null;
+  actualDate: string | null;
+  status: string;
+  plannedDateOverride: boolean;
+  scopeOverride: string | null;
+  locked: boolean;
+  notes: string | null;
+  createdAt: string;
+  itemName: string;
+  kind: string;
+  anchorType: string;
+  anchorRefId: number | null;
+}
