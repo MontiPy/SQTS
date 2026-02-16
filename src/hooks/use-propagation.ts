@@ -34,6 +34,7 @@ export function useApplyPropagation() {
     onSuccess: (_, params) => {
       queryClient.invalidateQueries({ queryKey: ['propagation-preview', params.projectId] });
       queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
       queryClient.invalidateQueries({ queryKey: ['supplier-projects'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },

@@ -16,6 +16,7 @@ export function useSyncAndPropagate() {
       // Invalidate everything that could have changed
       queryClient.invalidateQueries({ queryKey: ['propagation-preview'] });
       queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
       queryClient.invalidateQueries({ queryKey: ['supplier-projects'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['project-activities'] });
