@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -23,6 +24,7 @@ import {
 } from '@/hooks/use-supplier-instances';
 import { useSupplier } from '@/hooks/use-suppliers';
 import { useProject } from '@/hooks/use-projects';
+import { useSettings } from '@/hooks/use-settings';
 import { useToast } from '@/hooks/use-toast';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Button } from '@/components/ui/button';
@@ -87,6 +89,8 @@ export default function SupplierProjectDetail() {
   const { data: detailData, isLoading } = useSupplierProject(supplierId, projectId);
   const { data: supplier } = useSupplier(supplierId);
   const { data: project } = useProject(projectId);
+  const { data: settings } = useSettings();
+  const queryClient = useQueryClient();
 
   const updateStatus = useUpdateInstanceStatus();
   const batchUpdate = useBatchUpdateStatus();
@@ -107,6 +111,21 @@ export default function SupplierProjectDetail() {
   const [notesText, setNotesText] = useState('');
   const [overrideDateId, setOverrideDateId] = useState<number | null>(null);
   const [overrideDateValue, setOverrideDateValue] = useState('');
+
+  // Extract supplier-project metadata
+  const supplierProjectId = (detailData as any)?.id as number | undefined;
+  const currentNmrRank = (detailData as any)?.supplierProjectNmrRank as string | null | undefined;
+
+  const handleNmrRankChange = async (newRank: string | null) => {
+    if (!supplierProjectId) return;
+    try {
+      await window.sqts.supplierInstances.updateNmrRank(supplierProjectId, newRank);
+      queryClient.invalidateQueries({ queryKey: ['supplier-projects', supplierId, projectId] });
+      success('NMR Rank updated');
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Failed to update NMR rank');
+    }
+  };
 
   // Parse the detail response
   const activities: ActivityGroup[] = useMemo(() => {
@@ -336,6 +355,19 @@ export default function SupplierProjectDetail() {
           <p className="text-muted-foreground mt-1">
             Supplier project tracking detail
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-muted-foreground">NMR Rank:</label>
+          <select
+            value={currentNmrRank || ''}
+            onChange={(e) => handleNmrRankChange(e.target.value || null)}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">-- None --</option>
+            {(settings?.nmrRanks || []).map((rank) => (
+              <option key={rank} value={rank}>{rank}</option>
+            ))}
+          </select>
         </div>
       </div>
 

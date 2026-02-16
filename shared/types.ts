@@ -642,6 +642,12 @@ export interface ApplyProjectParams {
   projectId: number;
   supplierId: number;
   activityIds?: number[];
+  nmrRank?: string | null;
+}
+
+export interface UpdateSupplierProjectNmrRankParams {
+  supplierProjectId: number;
+  nmrRank: string | null;
 }
 
 export interface UpdateInstanceStatusParams {

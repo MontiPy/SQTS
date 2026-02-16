@@ -21,7 +21,8 @@ import type {
 const applyProjectSchema = z.object({
   projectId: z.number().int().positive(),
   supplierId: z.number().int().positive(),
-  activityIds: z.array(z.number().int().positive()).optional(), // Manual selection
+  activityIds: z.array(z.number().int().positive()).optional(),
+  nmrRank: z.string().nullable().optional(),
 });
 
 const updateInstanceStatusSchema = z.object({
@@ -83,11 +84,12 @@ export function registerSupplierInstanceHandlers() {
           throw new Error('Project already applied to this supplier');
         }
 
-        // Create supplier project
+        // Create supplier project (use explicit nmrRank if provided, otherwise null)
+        const nmrRank = validated.nmrRank !== undefined ? validated.nmrRank : null;
         run(
           `INSERT INTO supplier_projects (supplier_id, project_id, project_version, supplier_project_nmr_rank)
            VALUES (?, ?, ?, ?)`,
-          [validated.supplierId, validated.projectId, project.version, supplier.nmrRank]
+          [validated.supplierId, validated.projectId, project.version, nmrRank]
         );
         const supplierProjectId = queryOne<{ id: number }>('SELECT last_insert_rowid() as id')!.id;
 
@@ -758,19 +760,29 @@ export function registerSupplierInstanceHandlers() {
     }
   });
 
+  // Update supplier-project NMR rank
+  ipcMain.handle('supplier-instances:update-nmr-rank', async (_, supplierProjectId: number, nmrRank: string | null) => {
+    try {
+      run(
+        'UPDATE supplier_projects SET supplier_project_nmr_rank = ? WHERE id = ?',
+        [nmrRank, supplierProjectId]
+      );
+      createAuditEvent('supplier_project', supplierProjectId, 'update', { nmrRank });
+      return createSuccessResponse({ supplierProjectId, nmrRank });
+    } catch (error: any) {
+      return createErrorResponse(error.message);
+    }
+  });
+
   // Evaluate applicability rules for all project activities against a supplier
   ipcMain.handle('supplier-instances:evaluate-applicability', async (_, projectId: number, supplierId: number) => {
     try {
-      // Get supplier NMR rank (with project-level override)
+      // Get supplier NMR rank from the supplier-project record (per-project rank)
       const supplierProject = queryOne<{ supplierProjectNmrRank: string | null; id: number }>(
         'SELECT id, supplier_project_nmr_rank FROM supplier_projects WHERE project_id = ? AND supplier_id = ?',
         [projectId, supplierId]
       );
-      const supplier = queryOne<{ nmrRank: string | null }>(
-        'SELECT nmr_rank FROM suppliers WHERE id = ?',
-        [supplierId]
-      );
-      const supplierNmrRank = supplierProject?.supplierProjectNmrRank || supplier?.nmrRank || null;
+      const supplierNmrRank = supplierProject?.supplierProjectNmrRank || null;
 
       // Get parts PA ranks for this supplier-project combo
       let partPaRanks: string[] = [];

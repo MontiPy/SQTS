@@ -3,6 +3,7 @@ import { Users, AlertCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSuppliers } from '@/hooks/use-suppliers';
 import { useProjectActivities } from '@/hooks/use-project-activities';
+import { useSettings } from '@/hooks/use-settings';
 import { useToast } from '@/hooks/use-toast';
 import { useEvaluateApplicability } from '@/hooks/use-applicability';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,9 @@ export default function ApplyToSupplierDialog({ isOpen, onClose, projectId, proj
   const { data: suppliers, isLoading: loadingSuppliers } = useSuppliers();
   const { data: projectActivities, isLoading: loadingActivities } = useProjectActivities(projectId);
 
+  const { data: settings } = useSettings();
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
+  const [nmrRank, setNmrRank] = useState<string | null>(null);
   const { data: applicabilityResults } = useEvaluateApplicability(projectId, selectedSupplierId);
   const [selectedActivityIds, setSelectedActivityIds] = useState<number[]>([]);
   const [isApplying, setIsApplying] = useState(false);
@@ -75,6 +78,7 @@ export default function ApplyToSupplierDialog({ isOpen, onClose, projectId, proj
           projectId,
           supplierId: selectedSupplierId,
           activityIds: selectedActivityIds,
+          nmrRank,
         });
 
       if (!response.success) {
@@ -133,13 +137,24 @@ export default function ApplyToSupplierDialog({ isOpen, onClose, projectId, proj
                       onClick={() => setSelectedSupplierId(supplier.id)}
                     >
                       <div className="font-medium text-sm">{supplier.name}</div>
-                      {supplier.nmrRank && (
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          NMR Rank: {supplier.nmrRank}
-                        </div>
-                      )}
                     </button>
                   ))}
+                </div>
+              )}
+
+              {selectedSupplierId && (
+                <div className="mt-4 p-3 border rounded-md bg-muted/10">
+                  <label className="text-sm font-medium">NMR Rank for this project</label>
+                  <select
+                    value={nmrRank || ''}
+                    onChange={(e) => setNmrRank(e.target.value || null)}
+                    className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">-- No rank assigned --</option>
+                    {(settings?.nmrRanks || []).map((rank) => (
+                      <option key={rank} value={rank}>{rank}</option>
+                    ))}
+                  </select>
                 </div>
               )}
             </div>
