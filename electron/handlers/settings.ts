@@ -15,6 +15,24 @@ const updateSettingSchema = z.object({
   value: z.union([z.string(), z.boolean(), z.array(z.string())]),
 });
 
+// Normalize camelCase keys from the UI to snake_case for storage
+const keyMap: Record<string, string> = {
+  nmrRanks: 'nmr_ranks',
+  paRanks: 'pa_ranks',
+  milestoneCategories: 'milestone_categories',
+  propagationSkipComplete: 'propagation_skip_complete',
+  propagationSkipLocked: 'propagation_skip_locked',
+  propagationSkipOverridden: 'propagation_skip_overridden',
+  useBusinessDays: 'use_business_days',
+  dateFormat: 'date_format',
+  autoPropagateTemplateChanges: 'auto_propagate_template_changes',
+  autoPropagateToSuppliers: 'auto_propagate_to_suppliers',
+};
+
+function normalizeKey(key: string): string {
+  return keyMap[key] || key;
+}
+
 function parseSettingValue(key: string, value: string): string | boolean | string[] {
   // Parse value based on key type
   if (key === 'nmr_ranks' || key === 'pa_ranks' || key === 'milestone_categories') {
@@ -75,7 +93,7 @@ export function registerSettingsHandlers() {
   // Get single setting
   ipcMain.handle('settings:get', async (_, key: unknown) => {
     try {
-      const validKey = z.string().min(1, 'Setting key is required').parse(key);
+      const validKey = normalizeKey(z.string().min(1, 'Setting key is required').parse(key));
       const setting = queryOne<Setting>('SELECT * FROM settings WHERE key = ?', [validKey]);
       if (!setting) {
         return createErrorResponse('Setting not found');
@@ -93,15 +111,16 @@ export function registerSettingsHandlers() {
   ipcMain.handle('settings:update', async (_, params: unknown) => {
     try {
       const validated = updateSettingSchema.parse(params);
+      const dbKey = normalizeKey(validated.key);
       const serializedValue = serializeSettingValue(validated.value);
 
       run(
         `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
          ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = datetime('now')`,
-        [validated.key, serializedValue, serializedValue]
+        [dbKey, serializedValue, serializedValue]
       );
 
-      createAuditEvent('setting', null, 'update', { key: validated.key, value: serializedValue });
+      createAuditEvent('setting', null, 'update', { key: dbKey, value: serializedValue });
       return createSuccessResponse({ key: validated.key, value: validated.value });
     } catch (error: any) {
       if (error instanceof z.ZodError) {

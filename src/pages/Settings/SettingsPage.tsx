@@ -60,10 +60,7 @@ export default function SettingsPage() {
   };
 
   const addNmrRank = () => {
-    const newRank = prompt('Enter new NMR rank (e.g., A1, B1, C1):');
-    if (newRank && newRank.trim()) {
-      setNmrRanks([...nmrRanks, newRank.trim()]);
-    }
+    setNmrRanks([...nmrRanks, '']);
   };
 
   const removeNmrRank = (index: number) => {
@@ -71,10 +68,7 @@ export default function SettingsPage() {
   };
 
   const addPaRank = () => {
-    const newRank = prompt('Enter new PA rank:');
-    if (newRank && newRank.trim()) {
-      setPaRanks([...paRanks, newRank.trim()]);
-    }
+    setPaRanks([...paRanks, '']);
   };
 
   const removePaRank = (index: number) => {
@@ -112,7 +106,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               {nmrRanks.map((rank, index) => (
                 <div key={index} className="flex items-center gap-2">
-                  <Input value={rank} onChange={(e) => {
+                  <Input value={rank} placeholder="e.g. A1, B1, C1" autoFocus={rank === ''} onChange={(e) => {
                     const newRanks = [...nmrRanks];
                     newRanks[index] = e.target.value;
                     setNmrRanks(newRanks);
@@ -139,7 +133,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               {paRanks.map((rank, index) => (
                 <div key={index} className="flex items-center gap-2">
-                  <Input value={rank} onChange={(e) => {
+                  <Input value={rank} placeholder="e.g. PA1, PA2" autoFocus={rank === ''} onChange={(e) => {
                     const newRanks = [...paRanks];
                     newRanks[index] = e.target.value;
                     setPaRanks(newRanks);
