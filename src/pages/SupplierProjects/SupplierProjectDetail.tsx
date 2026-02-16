@@ -13,6 +13,9 @@ import {
   Square,
   MessageSquare,
   ShieldOff,
+  ShieldCheck,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 import {
   useSupplierProject,
@@ -26,6 +29,7 @@ import { useSupplier } from '@/hooks/use-suppliers';
 import { useProject } from '@/hooks/use-projects';
 import { useSettings } from '@/hooks/use-settings';
 import { useToast } from '@/hooks/use-toast';
+import { useEvaluateApplicability } from '@/hooks/use-applicability';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -127,6 +131,15 @@ export default function SupplierProjectDetail() {
     }
   };
 
+  // Re-evaluate applicability
+  const [showReeval, setShowReeval] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const { data: applicabilityResults, refetch: refetchApplicability } = useEvaluateApplicability(
+    projectId,
+    supplierId,
+    currentNmrRank,
+  );
+
   // Parse the detail response
   const activities: ActivityGroup[] = useMemo(() => {
     if (!detailData) return [];
@@ -146,6 +159,38 @@ export default function SupplierProjectDetail() {
       })),
     }));
   }, [detailData]);
+
+  const nonMatchingActivities = useMemo(() => {
+    if (!applicabilityResults || !activities.length) return [];
+    return applicabilityResults.filter(r => r.hasRule && !r.applicable);
+  }, [applicabilityResults, activities]);
+
+  const handleReEvaluate = async () => {
+    await refetchApplicability();
+    setShowReeval(true);
+  };
+
+  const handleRemoveNonMatching = async () => {
+    if (nonMatchingActivities.length === 0) return;
+    setIsRemoving(true);
+    try {
+      for (const result of nonMatchingActivities) {
+        await window.sqts.supplierInstances.toggleApplicability({
+          supplierId,
+          activityId: result.activityTemplateId,
+          projectId,
+          include: false,
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ['supplier-projects', supplierId, projectId] });
+      success(`Removed ${nonMatchingActivities.length} non-matching activities`);
+      setShowReeval(false);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Failed to remove activities');
+    } finally {
+      setIsRemoving(false);
+    }
+  };
 
   // Summary stats
   const summaryStats = useMemo(() => {
@@ -356,7 +401,7 @@ export default function SupplierProjectDetail() {
             Supplier project tracking detail
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <label className="text-sm font-medium text-muted-foreground">NMR Rank:</label>
           <select
             value={currentNmrRank || ''}
@@ -368,8 +413,59 @@ export default function SupplierProjectDetail() {
               <option key={rank} value={rank}>{rank}</option>
             ))}
           </select>
+          <Button variant="outline" size="sm" onClick={handleReEvaluate}>
+            <ShieldCheck className="w-4 h-4 mr-1" />
+            Re-evaluate
+          </Button>
         </div>
       </div>
+
+      {/* Re-evaluate Applicability Panel */}
+      {showReeval && (
+        <div className="border rounded-lg p-4 bg-muted/30">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4" />
+              Applicability Re-evaluation
+            </h3>
+            <Button variant="ghost" size="icon" onClick={() => setShowReeval(false)}>
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+          {nonMatchingActivities.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              All activities match the current applicability rules for NMR Rank "{currentNmrRank || 'None'}".
+            </p>
+          ) : (
+            <>
+              <div className="space-y-2 mb-4">
+                {nonMatchingActivities.map(r => {
+                  const activity = activities.find(a => a.projectActivityId === r.projectActivityId);
+                  return (
+                    <div key={r.projectActivityId} className="flex items-center gap-2 text-sm p-2 rounded border bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                      <span className="font-medium">{r.templateName}</span>
+                      <span className="text-muted-foreground">
+                        — does not match (
+                        {activity ? `${activity.scheduleInstances.length} schedule items` : 'activity'}
+                        )
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleRemoveNonMatching}
+                disabled={isRemoving}
+              >
+                {isRemoving ? 'Removing...' : `Remove ${nonMatchingActivities.length} non-matching activities`}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-4">
