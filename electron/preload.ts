@@ -38,6 +38,7 @@ import type {
   SupplierMilestoneGridUpdateParams,
   SupplierMilestoneGridFillRowParams,
   AuditListParams,
+  NmrRankGridUpdateParams,
 } from '@shared/types';
 
 // Preload API surface - exposes window.sqts
@@ -223,6 +224,12 @@ const api = {
     get: (projectId: number) => ipcRenderer.invoke('supplier-milestone-grid:get', projectId),
     update: (params: SupplierMilestoneGridUpdateParams) => ipcRenderer.invoke('supplier-milestone-grid:update', params),
     fillRow: (params: SupplierMilestoneGridFillRowParams) => ipcRenderer.invoke('supplier-milestone-grid:fill-row', params),
+  },
+
+  // NMR Rank Grid
+  nmrRankGrid: {
+    get: () => ipcRenderer.invoke('nmr-rank-grid:get'),
+    update: (params: NmrRankGridUpdateParams) => ipcRenderer.invoke('nmr-rank-grid:update', params),
   },
 
   // Audit Log

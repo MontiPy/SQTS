@@ -14,6 +14,7 @@ import { registerSupplierMilestoneGridHandlers } from './supplier-milestone-grid
 import { registerAuditHandlers } from './audit';
 import { registerSearchHandlers } from './search';
 import { registerGlobalOpsHandlers } from './global-ops';
+import { registerNmrRankGridHandlers } from './nmr-rank-grid';
 
 export function registerHandlers() {
   console.log('[SQTS] Registering all IPC handlers...');
@@ -49,5 +50,7 @@ export function registerHandlers() {
   console.log('[SQTS] Search handlers registered');
   registerGlobalOpsHandlers();
   console.log('[SQTS] Global ops handlers registered');
+  registerNmrRankGridHandlers();
+  console.log('[SQTS] NMR rank grid handlers registered');
   console.log('[SQTS] All handlers registered successfully');
 }

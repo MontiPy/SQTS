@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import SupplierForm from './SupplierForm';
+import NmrRankGrid from './NmrRankGrid';
 
 export default function SuppliersList() {
   const navigate = useNavigate();
@@ -36,59 +38,72 @@ export default function SuppliersList() {
         </Button>
       </div>
 
-      {!suppliers || suppliers.length === 0 ? (
-        <Card className="p-0">
-          <EmptyState
-            icon={Users}
-            message="No suppliers yet"
-            description="Get started by adding your first supplier"
-            actionLabel="Add Supplier"
-            onAction={() => setShowCreateForm(true)}
-          />
-        </Card>
-      ) : (
-        <>
-          <div className="mb-4">
-            <div className="relative w-full max-w-sm">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input
-                type="text"
-                placeholder="Search suppliers..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
+      <Tabs defaultValue="suppliers">
+        <TabsList className="mb-4">
+          <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
+          <TabsTrigger value="nmr-ranks">NMR Ranks</TabsTrigger>
+        </TabsList>
 
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Contact Name</TableHead>
-                  <TableHead>Contact Email</TableHead>
-                  <TableHead>Contact Phone</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredSuppliers.map((supplier) => (
-                  <TableRow
-                    key={supplier.id}
-                    onClick={() => navigate(`/suppliers/${supplier.id}`)}
-                    className="cursor-pointer"
-                  >
-                    <TableCell className="font-medium">{supplier.name}</TableCell>
-                    <TableCell>{supplier.contactName || '--'}</TableCell>
-                    <TableCell>{supplier.contactEmail || '--'}</TableCell>
-                    <TableCell>{supplier.contactPhone || '--'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        </>
-      )}
+        <TabsContent value="suppliers">
+          {!suppliers || suppliers.length === 0 ? (
+            <Card className="p-0">
+              <EmptyState
+                icon={Users}
+                message="No suppliers yet"
+                description="Get started by adding your first supplier"
+                actionLabel="Add Supplier"
+                onAction={() => setShowCreateForm(true)}
+              />
+            </Card>
+          ) : (
+            <>
+              <div className="mb-4">
+                <div className="relative w-full max-w-sm">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                  <Input
+                    type="text"
+                    placeholder="Search suppliers..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <Card>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Contact Name</TableHead>
+                      <TableHead>Contact Email</TableHead>
+                      <TableHead>Contact Phone</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredSuppliers.map((supplier) => (
+                      <TableRow
+                        key={supplier.id}
+                        onClick={() => navigate(`/suppliers/${supplier.id}`)}
+                        className="cursor-pointer"
+                      >
+                        <TableCell className="font-medium">{supplier.name}</TableCell>
+                        <TableCell>{supplier.contactName || '--'}</TableCell>
+                        <TableCell>{supplier.contactEmail || '--'}</TableCell>
+                        <TableCell>{supplier.contactPhone || '--'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="nmr-ranks">
+          <NmrRankGrid />
+        </TabsContent>
+      </Tabs>
 
       {showCreateForm && (
         <SupplierForm

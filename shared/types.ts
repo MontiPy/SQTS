@@ -790,6 +790,21 @@ export interface SupplierMilestoneGridFillRowParams {
   date: string;
 }
 
+// --- NMR Rank Grid ---
+
+export interface NmrRankGridData {
+  suppliers: { id: number; name: string }[];
+  projects: { id: number; name: string; version: string }[];
+  /** key = `${supplierId}-${projectId}`, value = supplierProjectId */
+  supplierProjectIds: Record<string, number>;
+  /** key = `${supplierId}-${projectId}`, value = nmrRank or null */
+  ranks: Record<string, string | null>;
+}
+
+export interface NmrRankGridUpdateParams {
+  updates: Array<{ supplierProjectId: number; nmrRank: string | null }>;
+}
+
 // --- Supplier Grid (supplier-first tracking) ---
 
 export interface SupplierGridParams {
