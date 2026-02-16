@@ -11,6 +11,9 @@ import type {
   ProjectMilestone,
   ActivityStatus,
   ScopeOverride,
+  SupplierGridProject,
+  SupplierGridActivity,
+  SupplierGridScheduleInstance,
 } from '@shared/types';
 
 // Zod schemas
@@ -653,6 +656,102 @@ export function registerSupplierInstanceHandlers() {
       );
 
       return createSuccessResponse(projects);
+    } catch (error: any) {
+      return createErrorResponse(error.message);
+    }
+  });
+
+  // Get supplier grid - supplier-first tracking (Project -> Activity -> Instances)
+  ipcMain.handle('supplier-instances:get-supplier-grid', async (_, supplierId: number, projectId?: number, activityId?: number) => {
+    try {
+      let sql = `
+        SELECT
+          p.id as project_id, p.name as project_name,
+          sp.id as supplier_project_id,
+          sai.id as activity_instance_id, sai.project_activity_id,
+          at.name as activity_name, at.id as activity_template_id,
+          ssii.id, ssii.supplier_activity_instance_id, ssii.project_schedule_item_id,
+          ssii.planned_date, ssii.actual_date, ssii.status,
+          ssii.planned_date_override, ssii.scope_override, ssii.locked, ssii.notes, ssii.created_at,
+          psi.name as item_name, psi.kind, psi.anchor_type, psi.anchor_ref_id, psi.sort_order
+        FROM supplier_projects sp
+        JOIN projects p ON p.id = sp.project_id
+        JOIN supplier_activity_instances sai ON sai.supplier_project_id = sp.id
+        JOIN project_activities pa ON pa.id = sai.project_activity_id
+        JOIN activity_templates at ON at.id = pa.activity_template_id
+        JOIN supplier_schedule_item_instances ssii ON ssii.supplier_activity_instance_id = sai.id
+        JOIN project_schedule_items psi ON psi.id = ssii.project_schedule_item_id
+        WHERE sp.supplier_id = ?`;
+
+      const params: (number)[] = [supplierId];
+
+      if (projectId) {
+        sql += ` AND sp.project_id = ?`;
+        params.push(projectId);
+      }
+
+      if (activityId) {
+        sql += ` AND pa.activity_template_id = ?`;
+        params.push(activityId);
+      }
+
+      sql += ` ORDER BY p.name, at.name, psi.sort_order`;
+
+      const rows = query<any>(sql, params);
+
+      // Group flat rows into Project -> Activity -> Instances hierarchy
+      const projectMap = new Map<number, SupplierGridProject>();
+
+      for (const row of rows) {
+        // Get or create project entry
+        let project = projectMap.get(row.projectId);
+        if (!project) {
+          project = {
+            projectId: row.projectId,
+            projectName: row.projectName,
+            supplierProjectId: row.supplierProjectId,
+            activities: [],
+          };
+          projectMap.set(row.projectId, project);
+        }
+
+        // Get or create activity entry within the project
+        let activity = project.activities.find(
+          (a) => a.activityInstanceId === row.activityInstanceId
+        );
+        if (!activity) {
+          activity = {
+            activityInstanceId: row.activityInstanceId,
+            projectActivityId: row.projectActivityId,
+            activityName: row.activityName,
+            activityTemplateId: row.activityTemplateId,
+            scheduleInstances: [],
+          };
+          project.activities.push(activity);
+        }
+
+        // Add schedule instance
+        const instance: SupplierGridScheduleInstance = {
+          id: row.id,
+          supplierActivityInstanceId: row.supplierActivityInstanceId,
+          projectScheduleItemId: row.projectScheduleItemId,
+          plannedDate: row.plannedDate,
+          actualDate: row.actualDate,
+          status: row.status,
+          plannedDateOverride: !!row.plannedDateOverride,
+          scopeOverride: row.scopeOverride,
+          locked: !!row.locked,
+          notes: row.notes,
+          createdAt: row.createdAt,
+          itemName: row.itemName,
+          kind: row.kind,
+          anchorType: row.anchorType,
+          anchorRefId: row.anchorRefId,
+        };
+        activity.scheduleInstances.push(instance);
+      }
+
+      return createSuccessResponse(Array.from(projectMap.values()));
     } catch (error: any) {
       return createErrorResponse(error.message);
     }
