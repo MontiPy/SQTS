@@ -21,6 +21,7 @@ import SaveVersionDialog from './SaveVersionDialog';
 import VersionHistoryPanel from './VersionHistoryPanel';
 import ApplyToProjectsDialog from './ApplyToProjectsDialog';
 import SyncAllProjectsDialog from './SyncAllProjectsDialog';
+import ApplicabilityRuleBuilder from './ApplicabilityRuleBuilder';
 import type { ActivityTemplateScheduleItem, AnchorType, ScheduleItemKind } from '@shared/types';
 
 export default function ActivityTemplateDetail() {
@@ -50,6 +51,7 @@ export default function ActivityTemplateDetail() {
   const [editingItemData, setEditingItemData] = useState<Partial<ActivityTemplateScheduleItem> | null>(null);
   const [newItemUseTemplateMilestone, setNewItemUseTemplateMilestone] = useState(true);
   const [editingItemUseTemplateMilestone, setEditingItemUseTemplateMilestone] = useState(true);
+  const [activeTab, setActiveTab] = useState<'schedule' | 'applicability'>('schedule');
 
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -224,6 +226,30 @@ export default function ActivityTemplateDetail() {
         </Card>
       )}
 
+      <div className="flex border-b mb-4">
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'schedule'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+          onClick={() => setActiveTab('schedule')}
+        >
+          Schedule Items
+        </button>
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'applicability'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+          onClick={() => setActiveTab('applicability')}
+        >
+          Applicability
+        </button>
+      </div>
+
+      {activeTab === 'schedule' && (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Schedule Items</CardTitle>
@@ -567,6 +593,11 @@ export default function ActivityTemplateDetail() {
           )}
         </CardContent>
       </Card>
+      )}
+
+      {activeTab === 'applicability' && (
+        <ApplicabilityRuleBuilder templateId={templateId} />
+      )}
 
       {showEditForm && (
         <ActivityTemplateForm
