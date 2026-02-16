@@ -13,9 +13,7 @@ import {
   Square,
   MessageSquare,
   ShieldOff,
-  ShieldCheck,
   AlertTriangle,
-  X,
 } from 'lucide-react';
 import {
   useSupplierProject,
@@ -131,10 +129,9 @@ export default function SupplierProjectDetail() {
     }
   };
 
-  // Re-evaluate applicability
-  const [showReeval, setShowReeval] = useState(false);
+  // Applicability evaluation (runs automatically when NMR rank changes)
   const [isRemoving, setIsRemoving] = useState(false);
-  const { data: applicabilityResults, refetch: refetchApplicability } = useEvaluateApplicability(
+  const { data: applicabilityResults } = useEvaluateApplicability(
     projectId,
     supplierId,
     currentNmrRank,
@@ -160,15 +157,14 @@ export default function SupplierProjectDetail() {
     }));
   }, [detailData]);
 
+  // Only flag activities that are both non-matching AND currently applied to this supplier
   const nonMatchingActivities = useMemo(() => {
     if (!applicabilityResults || !activities.length) return [];
-    return applicabilityResults.filter(r => r.hasRule && !r.applicable);
+    const appliedProjectActivityIds = new Set(activities.map(a => a.projectActivityId));
+    return applicabilityResults.filter(
+      r => r.hasRule && !r.applicable && appliedProjectActivityIds.has(r.projectActivityId)
+    );
   }, [applicabilityResults, activities]);
-
-  const handleReEvaluate = async () => {
-    await refetchApplicability();
-    setShowReeval(true);
-  };
 
   const handleRemoveNonMatching = async () => {
     if (nonMatchingActivities.length === 0) return;
@@ -186,7 +182,6 @@ export default function SupplierProjectDetail() {
       queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
       queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
       success(`Removed ${nonMatchingActivities.length} non-matching activities`);
-      setShowReeval(false);
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to remove activities');
     } finally {
@@ -415,57 +410,31 @@ export default function SupplierProjectDetail() {
               <option key={rank} value={rank}>{rank}</option>
             ))}
           </select>
-          <Button variant="outline" size="sm" onClick={handleReEvaluate}>
-            <ShieldCheck className="w-4 h-4 mr-1" />
-            Re-evaluate
-          </Button>
         </div>
       </div>
 
-      {/* Re-evaluate Applicability Panel */}
-      {showReeval && (
-        <div className="border rounded-lg p-4 bg-muted/30">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4" />
-              Applicability Re-evaluation
-            </h3>
-            <Button variant="ghost" size="icon" onClick={() => setShowReeval(false)}>
-              <X className="w-4 h-4" />
-            </Button>
+      {/* Applicability warning banner — shown automatically when applied activities don't match */}
+      {nonMatchingActivities.length > 0 && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20">
+          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+          <div className="flex-1 text-sm">
+            <span className="font-medium">
+              {nonMatchingActivities.length} applied {nonMatchingActivities.length === 1 ? 'activity does' : 'activities do'} not match
+            </span>
+            <span className="text-muted-foreground"> the current NMR Rank "{currentNmrRank || 'None'}": </span>
+            <span className="font-medium">
+              {nonMatchingActivities.map(r => r.templateName).join(', ')}
+            </span>
           </div>
-          {nonMatchingActivities.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              All activities match the current applicability rules for NMR Rank "{currentNmrRank || 'None'}".
-            </p>
-          ) : (
-            <>
-              <div className="space-y-2 mb-4">
-                {nonMatchingActivities.map(r => {
-                  const activity = activities.find(a => a.projectActivityId === r.projectActivityId);
-                  return (
-                    <div key={r.projectActivityId} className="flex items-center gap-2 text-sm p-2 rounded border bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                      <span className="font-medium">{r.templateName}</span>
-                      <span className="text-muted-foreground">
-                        — does not match (
-                        {activity ? `${activity.scheduleInstances.length} schedule items` : 'activity'}
-                        )
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleRemoveNonMatching}
-                disabled={isRemoving}
-              >
-                {isRemoving ? 'Removing...' : `Remove ${nonMatchingActivities.length} non-matching activities`}
-              </Button>
-            </>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRemoveNonMatching}
+            disabled={isRemoving}
+            className="shrink-0"
+          >
+            {isRemoving ? 'Removing...' : 'Remove'}
+          </Button>
         </div>
       )}
 
