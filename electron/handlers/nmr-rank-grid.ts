@@ -14,7 +14,15 @@ const updateSchema = z.object({
 export function registerNmrRankGridHandlers() {
   ipcMain.handle('nmr-rank-grid:get', async () => {
     try {
-      // Get all supplier-project combinations
+      // Get ALL suppliers and ALL projects
+      const suppliers = query<{ id: number; name: string }>(
+        `SELECT id, name FROM suppliers ORDER BY name`
+      );
+      const projects = query<{ id: number; name: string; version: string }>(
+        `SELECT id, name, version FROM projects ORDER BY name`
+      );
+
+      // Get existing supplier-project combinations
       const supplierProjects = query<{
         id: number;
         supplierId: number;
@@ -24,29 +32,6 @@ export function registerNmrRankGridHandlers() {
         `SELECT id, supplier_id, project_id, supplier_project_nmr_rank
          FROM supplier_projects
          ORDER BY id`
-      );
-
-      if (supplierProjects.length === 0) {
-        return createSuccessResponse<NmrRankGridData>({
-          suppliers: [],
-          projects: [],
-          supplierProjectIds: {},
-          ranks: {},
-        });
-      }
-
-      // Get unique suppliers that have at least one project
-      const supplierIds = [...new Set(supplierProjects.map(sp => sp.supplierId))];
-      const suppliers = query<{ id: number; name: string }>(
-        `SELECT id, name FROM suppliers WHERE id IN (${supplierIds.map(() => '?').join(',')}) ORDER BY name`,
-        supplierIds
-      );
-
-      // Get unique projects that have at least one supplier
-      const projectIds = [...new Set(supplierProjects.map(sp => sp.projectId))];
-      const projects = query<{ id: number; name: string; version: string }>(
-        `SELECT id, name, version FROM projects WHERE id IN (${projectIds.map(() => '?').join(',')}) ORDER BY name`,
-        projectIds
       );
 
       // Build lookup maps
