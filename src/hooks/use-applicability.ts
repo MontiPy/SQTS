@@ -166,12 +166,12 @@ export interface ApplicabilityResult {
   hasRule: boolean;
 }
 
-export function useEvaluateApplicability(projectId: number, supplierId: number | null) {
+export function useEvaluateApplicability(projectId: number, supplierId: number | null, nmrRank?: string | null) {
   return useQuery<ApplicabilityResult[]>({
-    queryKey: ['evaluate-applicability', projectId, supplierId],
+    queryKey: ['evaluate-applicability', projectId, supplierId, nmrRank],
     queryFn: async () => {
       const response: APIResponse<ApplicabilityResult[]> =
-        await window.sqts.supplierInstances.evaluateApplicability(projectId, supplierId!);
+        await window.sqts.supplierInstances.evaluateApplicability(projectId, supplierId!, nmrRank);
       if (!response.success || !response.data) {
         throw new Error(response.error || 'Failed to evaluate applicability');
       }

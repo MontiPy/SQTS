@@ -26,7 +26,7 @@ export default function ApplyToSupplierDialog({ isOpen, onClose, projectId, proj
   const { data: settings } = useSettings();
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
   const [nmrRank, setNmrRank] = useState<string | null>(null);
-  const { data: applicabilityResults } = useEvaluateApplicability(projectId, selectedSupplierId);
+  const { data: applicabilityResults } = useEvaluateApplicability(projectId, selectedSupplierId, nmrRank);
   const [selectedActivityIds, setSelectedActivityIds] = useState<number[]>([]);
   const [isApplying, setIsApplying] = useState(false);
   const [step, setStep] = useState<'select-supplier' | 'select-activities'>('select-supplier');

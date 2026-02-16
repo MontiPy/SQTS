@@ -775,14 +775,14 @@ export function registerSupplierInstanceHandlers() {
   });
 
   // Evaluate applicability rules for all project activities against a supplier
-  ipcMain.handle('supplier-instances:evaluate-applicability', async (_, projectId: number, supplierId: number) => {
+  ipcMain.handle('supplier-instances:evaluate-applicability', async (_, projectId: number, supplierId: number, nmrRankOverride?: string | null) => {
     try {
-      // Get supplier NMR rank from the supplier-project record (per-project rank)
+      // Get supplier NMR rank: use override (from apply dialog) or fall back to DB record
       const supplierProject = queryOne<{ supplierProjectNmrRank: string | null; id: number }>(
         'SELECT id, supplier_project_nmr_rank FROM supplier_projects WHERE project_id = ? AND supplier_id = ?',
         [projectId, supplierId]
       );
-      const supplierNmrRank = supplierProject?.supplierProjectNmrRank || null;
+      const supplierNmrRank = nmrRankOverride !== undefined ? (nmrRankOverride || null) : (supplierProject?.supplierProjectNmrRank || null);
 
       // Get parts PA ranks for this supplier-project combo
       let partPaRanks: string[] = [];
