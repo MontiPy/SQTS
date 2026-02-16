@@ -112,9 +112,9 @@ export default function SupplierProjectDetail() {
   const [overrideDateId, setOverrideDateId] = useState<number | null>(null);
   const [overrideDateValue, setOverrideDateValue] = useState('');
 
-  // Extract supplier-project metadata
-  const supplierProjectId = (detailData as any)?.id as number | undefined;
-  const currentNmrRank = (detailData as any)?.supplierProjectNmrRank as string | null | undefined;
+  // Extract supplier-project metadata (response is { supplierProject, activities })
+  const supplierProjectId = (detailData as any)?.supplierProject?.id as number | undefined;
+  const currentNmrRank = (detailData as any)?.supplierProject?.supplierProjectNmrRank as string | null | undefined;
 
   const handleNmrRankChange = async (newRank: string | null) => {
     if (!supplierProjectId) return;
