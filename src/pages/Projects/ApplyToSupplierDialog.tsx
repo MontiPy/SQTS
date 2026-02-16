@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSuppliers } from '@/hooks/use-suppliers';
 import { useProjectActivities } from '@/hooks/use-project-activities';
 import { useToast } from '@/hooks/use-toast';
+import { useEvaluateApplicability } from '@/hooks/use-applicability';
 import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import type { APIResponse } from '@shared/types';
@@ -22,16 +23,22 @@ export default function ApplyToSupplierDialog({ isOpen, onClose, projectId, proj
   const { data: projectActivities, isLoading: loadingActivities } = useProjectActivities(projectId);
 
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
+  const { data: applicabilityResults } = useEvaluateApplicability(projectId, selectedSupplierId);
   const [selectedActivityIds, setSelectedActivityIds] = useState<number[]>([]);
   const [isApplying, setIsApplying] = useState(false);
   const [step, setStep] = useState<'select-supplier' | 'select-activities'>('select-supplier');
 
-  // Pre-check all activities when they load
+  // Pre-check activities: use applicability suggestions if available, otherwise all
   useEffect(() => {
-    if (projectActivities) {
+    if (projectActivities && applicabilityResults) {
+      const suggested = applicabilityResults
+        .filter(r => r.applicable)
+        .map(r => r.projectActivityId);
+      setSelectedActivityIds(suggested);
+    } else if (projectActivities) {
       setSelectedActivityIds(projectActivities.map(a => a.id));
     }
-  }, [projectActivities]);
+  }, [projectActivities, applicabilityResults]);
 
   const handleToggleActivity = (activityId: number) => {
     setSelectedActivityIds(prev =>
@@ -147,6 +154,13 @@ export default function ApplyToSupplierDialog({ isOpen, onClose, projectId, proj
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={handleSelectAll}>All</Button>
                   <Button variant="ghost" size="sm" onClick={handleSelectNone}>None</Button>
+                  <Button variant="ghost" size="sm" onClick={() => {
+                    if (applicabilityResults) {
+                      setSelectedActivityIds(applicabilityResults.filter(r => r.applicable).map(r => r.projectActivityId));
+                    }
+                  }}>
+                    Suggested
+                  </Button>
                 </div>
               </div>
               {loadingActivities ? (
@@ -170,7 +184,18 @@ export default function ApplyToSupplierDialog({ isOpen, onClose, projectId, proj
                         className="w-4 h-4 rounded border-muted-foreground"
                       />
                       <div className="flex-1">
-                        <div className="font-medium text-sm">{activity.templateName}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">{activity.templateName}</span>
+                          {applicabilityResults && (() => {
+                            const result = applicabilityResults.find(r => r.projectActivityId === activity.id);
+                            if (!result || !result.hasRule) {
+                              return <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">No rule</span>;
+                            }
+                            return result.applicable
+                              ? <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700">Match</span>
+                              : <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">No match</span>;
+                          })()}
+                        </div>
                         {activity.templateCategory && (
                           <div className="text-xs text-muted-foreground">{activity.templateCategory}</div>
                         )}
