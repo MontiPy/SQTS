@@ -220,6 +220,7 @@ export interface SyncAndPropagateResult {
   datesUpdated: number;
   datesSkipped: number;
   propagationErrors: Array<{ projectId: number; error: string }>;
+  activitiesRemoved: number;
 }
 
 // --- Settings ---

@@ -760,15 +760,80 @@ export function registerSupplierInstanceHandlers() {
     }
   });
 
-  // Update supplier-project NMR rank
+  // Update supplier-project NMR rank (auto-removes non-matching activities)
   ipcMain.handle('supplier-instances:update-nmr-rank', async (_, supplierProjectId: number, nmrRank: string | null) => {
     try {
-      run(
-        'UPDATE supplier_projects SET supplier_project_nmr_rank = ? WHERE id = ?',
-        [nmrRank, supplierProjectId]
-      );
-      createAuditEvent('supplier_project', supplierProjectId, 'update', { nmrRank });
-      return createSuccessResponse({ supplierProjectId, nmrRank });
+      return await withTransaction(async () => {
+        run(
+          'UPDATE supplier_projects SET supplier_project_nmr_rank = ? WHERE id = ?',
+          [nmrRank, supplierProjectId]
+        );
+
+        // Auto-remove activities that no longer match the new NMR rank
+        const sp = queryOne<{ projectId: number; supplierId: number }>(
+          'SELECT project_id, supplier_id FROM supplier_projects WHERE id = ?',
+          [supplierProjectId]
+        );
+        let removedCount = 0;
+
+        if (sp) {
+          const partPaRanks = query<{ paRank: string | null }>(
+            'SELECT pa_rank FROM parts WHERE supplier_project_id = ?',
+            [supplierProjectId]
+          ).map(p => p.paRank).filter((r): r is string => r != null);
+
+          const context = { supplierNmrRank: nmrRank, partPaRanks };
+
+          const nmrSetting = queryOne<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['nmr_ranks']);
+          const rankOrder: string[] = nmrSetting ? JSON.parse(nmrSetting.value) : [];
+
+          const projectActivities = query<{ id: number; activityTemplateId: number }>(
+            'SELECT pa.id, pa.activity_template_id FROM project_activities pa WHERE pa.project_id = ?',
+            [sp.projectId]
+          );
+
+          // Evaluate applicability for each template
+          const templateData = projectActivities.map(pa => {
+            const rule = queryOne<{ id: number; activityTemplateId: number; operator: string; enabled: number; createdAt: string }>(
+              'SELECT * FROM activity_template_applicability_rules WHERE activity_template_id = ?',
+              [pa.activityTemplateId]
+            );
+            let clauses: any[] = [];
+            if (rule) {
+              clauses = query(
+                'SELECT * FROM activity_template_applicability_clauses WHERE rule_id = ?',
+                [rule.id]
+              );
+            }
+            return {
+              projectActivityId: pa.id,
+              templateId: pa.activityTemplateId,
+              rule: rule ? { ...rule, enabled: !!rule.enabled } as any : null,
+              clauses,
+            };
+          });
+
+          const results = evaluateMultipleTemplates(templateData, context, rankOrder);
+
+          // Remove non-matching activity instances
+          for (const td of templateData) {
+            const isApplicable = results.get(td.templateId) ?? true;
+            if (!isApplicable && td.rule) {
+              const activityInstance = queryOne<{ id: number }>(
+                'SELECT id FROM supplier_activity_instances WHERE supplier_project_id = ? AND project_activity_id = ?',
+                [supplierProjectId, td.projectActivityId]
+              );
+              if (activityInstance) {
+                run('DELETE FROM supplier_activity_instances WHERE id = ?', [activityInstance.id]);
+                removedCount++;
+              }
+            }
+          }
+        }
+
+        createAuditEvent('supplier_project', supplierProjectId, 'update', { nmrRank, removedActivities: removedCount });
+        return createSuccessResponse({ supplierProjectId, nmrRank, removedActivities: removedCount });
+      });
     } catch (error: any) {
       return createErrorResponse(error.message);
     }
@@ -813,38 +878,19 @@ export function registerSupplierInstanceHandlers() {
         [projectId]
       );
 
-      // Batch fetch all rules and clauses (avoids N+1 queries)
-      const templateIds = projectActivities.map(pa => pa.activityTemplateId);
-      const placeholders = templateIds.map(() => '?').join(',');
-
-      const allRules = templateIds.length > 0
-        ? query<{ id: number; activityTemplateId: number; operator: string; enabled: number; createdAt: string }>(
-            `SELECT * FROM activity_template_applicability_rules WHERE activity_template_id IN (${placeholders})`,
-            templateIds
-          )
-        : [];
-
-      const ruleIds = allRules.map(r => r.id);
-      const rulePlaceholders = ruleIds.map(() => '?').join(',');
-
-      const allClauses = ruleIds.length > 0
-        ? query<any>(
-            `SELECT * FROM activity_template_applicability_clauses WHERE rule_id IN (${rulePlaceholders})`,
-            ruleIds
-          )
-        : [];
-
-      // Index by templateId and ruleId
-      const rulesByTemplate = new Map(allRules.map(r => [r.activityTemplateId, r]));
-      const clausesByRule = new Map<number, any[]>();
-      for (const clause of allClauses) {
-        if (!clausesByRule.has(clause.ruleId)) clausesByRule.set(clause.ruleId, []);
-        clausesByRule.get(clause.ruleId)!.push(clause);
-      }
-
+      // Fetch rules and clauses for each template
       const templates = projectActivities.map(pa => {
-        const rule = rulesByTemplate.get(pa.activityTemplateId) || null;
-        const clauses = rule ? (clausesByRule.get(rule.id) || []) : [];
+        const rule = queryOne<{ id: number; activityTemplateId: number; operator: string; enabled: number; createdAt: string }>(
+          'SELECT * FROM activity_template_applicability_rules WHERE activity_template_id = ?',
+          [pa.activityTemplateId]
+        );
+        let clauses: any[] = [];
+        if (rule) {
+          clauses = query(
+            'SELECT * FROM activity_template_applicability_clauses WHERE rule_id = ?',
+            [rule.id]
+          );
+        }
         return {
           templateId: pa.activityTemplateId,
           rule: rule ? { ...rule, enabled: !!rule.enabled } as any : null,

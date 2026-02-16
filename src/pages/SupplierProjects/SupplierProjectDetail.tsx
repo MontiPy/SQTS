@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -13,7 +13,6 @@ import {
   Square,
   MessageSquare,
   ShieldOff,
-  AlertTriangle,
 } from 'lucide-react';
 import {
   useSupplierProject,
@@ -122,7 +121,11 @@ export default function SupplierProjectDetail() {
     if (!supplierProjectId) return;
     try {
       await window.sqts.supplierInstances.updateNmrRank(supplierProjectId, newRank);
+      // Backend auto-removes non-matching activities; refresh all related caches
       queryClient.invalidateQueries({ queryKey: ['supplier-projects', supplierId, projectId] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
+      queryClient.invalidateQueries({ queryKey: ['evaluate-applicability'] });
       success('NMR Rank updated');
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to update NMR rank');
@@ -130,7 +133,6 @@ export default function SupplierProjectDetail() {
   };
 
   // Applicability evaluation (runs automatically when NMR rank changes)
-  const [isRemoving, setIsRemoving] = useState(false);
   const { data: applicabilityResults } = useEvaluateApplicability(
     projectId,
     supplierId,
@@ -166,28 +168,34 @@ export default function SupplierProjectDetail() {
     );
   }, [applicabilityResults, activities]);
 
-  const handleRemoveNonMatching = async () => {
-    if (nonMatchingActivities.length === 0) return;
-    setIsRemoving(true);
-    try {
-      for (const result of nonMatchingActivities) {
-        await window.sqts.supplierInstances.toggleApplicability({
-          supplierId,
-          activityId: result.activityTemplateId,
-          projectId,
-          include: false,
-        });
-      }
-      queryClient.invalidateQueries({ queryKey: ['supplier-projects', supplierId, projectId] });
-      queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
-      queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
-      success(`Removed ${nonMatchingActivities.length} non-matching activities`);
-    } catch (err) {
-      showError(err instanceof Error ? err.message : 'Failed to remove activities');
-    } finally {
-      setIsRemoving(false);
+  // Auto-remove non-matching activities (no manual intervention needed)
+  const autoRemoveTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (nonMatchingActivities.length > 0 && !autoRemoveTriggeredRef.current) {
+      autoRemoveTriggeredRef.current = true;
+      (async () => {
+        try {
+          for (const result of nonMatchingActivities) {
+            await window.sqts.supplierInstances.toggleApplicability({
+              supplierId,
+              activityId: result.activityTemplateId,
+              projectId,
+              include: false,
+            });
+          }
+          queryClient.invalidateQueries({ queryKey: ['supplier-projects', supplierId, projectId] });
+          queryClient.invalidateQueries({ queryKey: ['supplier-grid'] });
+          queryClient.invalidateQueries({ queryKey: ['supplier-grid-by-supplier'] });
+          success(`Auto-removed ${nonMatchingActivities.length} non-matching ${nonMatchingActivities.length === 1 ? 'activity' : 'activities'}`);
+        } catch {
+          // Silently fail — user can still manually manage activities
+        }
+      })();
     }
-  };
+    if (nonMatchingActivities.length === 0) {
+      autoRemoveTriggeredRef.current = false;
+    }
+  }, [nonMatchingActivities, supplierId, projectId, queryClient, success]);
 
   // Summary stats
   const summaryStats = useMemo(() => {
@@ -412,31 +420,6 @@ export default function SupplierProjectDetail() {
           </select>
         </div>
       </div>
-
-      {/* Applicability warning banner — shown automatically when applied activities don't match */}
-      {nonMatchingActivities.length > 0 && (
-        <div className="flex items-center gap-3 p-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20">
-          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-          <div className="flex-1 text-sm">
-            <span className="font-medium">
-              {nonMatchingActivities.length} applied {nonMatchingActivities.length === 1 ? 'activity does' : 'activities do'} not match
-            </span>
-            <span className="text-muted-foreground"> the current NMR Rank "{currentNmrRank || 'None'}": </span>
-            <span className="font-medium">
-              {nonMatchingActivities.map(r => r.templateName).join(', ')}
-            </span>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRemoveNonMatching}
-            disabled={isRemoving}
-            className="shrink-0"
-          >
-            {isRemoving ? 'Removing...' : 'Remove'}
-          </Button>
-        </div>
-      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-4">

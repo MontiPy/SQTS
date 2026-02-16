@@ -4,6 +4,7 @@ import { createSuccessResponse, createErrorResponse, createAuditEvent } from './
 import { applySyncForSingleProjectActivity } from './template-sync';
 import { repairMilestoneLinks } from './propagation';
 import { computePropagationPreview, filterPropagationChanges, SupplierPropagationData } from '../engine/propagation';
+import { evaluateMultipleTemplates } from '../engine/applicability';
 import { run } from '../database';
 import type {
   ProjectScheduleItem,
@@ -178,6 +179,83 @@ export function registerGlobalOpsHandlers() {
           }
         }
 
+        // --- Phase 3: Applicability Enforcement ---
+        // Remove activities that no longer match each supplier-project's NMR rank
+        let totalActivitiesRemoved = 0;
+
+        const nmrSetting = queryOne<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['nmr_ranks']);
+        const rankOrder: string[] = nmrSetting ? JSON.parse(nmrSetting.value) : [];
+
+        // Get all supplier-projects that have an NMR rank set
+        const rankedSupplierProjects = query<{
+          id: number;
+          projectId: number;
+          supplierId: number;
+          supplierProjectNmrRank: string | null;
+        }>(`
+          SELECT id, project_id, supplier_id, supplier_project_nmr_rank
+          FROM supplier_projects
+          WHERE supplier_project_nmr_rank IS NOT NULL
+        `);
+
+        for (const sp of rankedSupplierProjects) {
+          try {
+            // Build applicability context
+            const partPaRanks = query<{ paRank: string | null }>(
+              'SELECT pa_rank FROM parts WHERE supplier_project_id = ?',
+              [sp.id]
+            ).map(p => p.paRank).filter((r): r is string => r != null);
+
+            const context = { supplierNmrRank: sp.supplierProjectNmrRank, partPaRanks };
+
+            // Get project activities
+            const projectActivities = query<{ id: number; activityTemplateId: number }>(
+              'SELECT pa.id, pa.activity_template_id FROM project_activities pa WHERE pa.project_id = ?',
+              [sp.projectId]
+            );
+
+            // Evaluate applicability for each template
+            const templateData = projectActivities.map(pa => {
+              const rule = queryOne<{ id: number; activityTemplateId: number; operator: string; enabled: number; createdAt: string }>(
+                'SELECT * FROM activity_template_applicability_rules WHERE activity_template_id = ?',
+                [pa.activityTemplateId]
+              );
+              let clauses: any[] = [];
+              if (rule) {
+                clauses = query(
+                  'SELECT * FROM activity_template_applicability_clauses WHERE rule_id = ?',
+                  [rule.id]
+                );
+              }
+              return {
+                projectActivityId: pa.id,
+                templateId: pa.activityTemplateId,
+                rule: rule ? { ...rule, enabled: !!rule.enabled } as any : null,
+                clauses,
+              };
+            });
+
+            const results = evaluateMultipleTemplates(templateData, context, rankOrder);
+
+            // Remove non-matching activity instances
+            for (const td of templateData) {
+              const isApplicable = results.get(td.templateId) ?? true;
+              if (!isApplicable && td.rule) {
+                const activityInstance = queryOne<{ id: number }>(
+                  'SELECT id FROM supplier_activity_instances WHERE supplier_project_id = ? AND project_activity_id = ?',
+                  [sp.id, td.projectActivityId]
+                );
+                if (activityInstance) {
+                  run('DELETE FROM supplier_activity_instances WHERE id = ?', [activityInstance.id]);
+                  totalActivitiesRemoved++;
+                }
+              }
+            }
+          } catch {
+            // Skip this supplier-project on error; don't block the whole operation
+          }
+        }
+
         createAuditEvent('global', null, 'sync_and_propagate', {
           templatesSynced: syncCount,
           syncErrors: syncErrors.length,
@@ -185,6 +263,7 @@ export function registerGlobalOpsHandlers() {
           datesUpdated: totalUpdated,
           datesSkipped: totalSkipped,
           propagationErrors: propagationErrors.length,
+          activitiesRemoved: totalActivitiesRemoved,
         });
 
         return createSuccessResponse({
@@ -194,6 +273,7 @@ export function registerGlobalOpsHandlers() {
           datesUpdated: totalUpdated,
           datesSkipped: totalSkipped,
           propagationErrors,
+          activitiesRemoved: totalActivitiesRemoved,
         });
       });
     } catch (error: any) {

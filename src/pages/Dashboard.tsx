@@ -26,6 +26,7 @@ export default function Dashboard() {
         if (data.templatesSynced > 0) parts.push(`${data.templatesSynced} templates synced`);
         if (data.datesUpdated > 0) parts.push(`${data.datesUpdated} dates updated`);
         if (data.datesSkipped > 0) parts.push(`${data.datesSkipped} skipped`);
+        if (data.activitiesRemoved > 0) parts.push(`${data.activitiesRemoved} non-matching activities removed`);
         if (data.syncErrors.length > 0) parts.push(`${data.syncErrors.length} sync errors`);
         if (data.propagationErrors.length > 0) parts.push(`${data.propagationErrors.length} propagation errors`);
         if (parts.length === 0) parts.push('Everything is up to date');
@@ -97,7 +98,7 @@ export default function Dashboard() {
           <div>
             <CardTitle>Sync & Propagate</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              Sync all templates to their latest versions and propagate milestone dates to every supplier
+              Sync templates, propagate dates, and enforce NMR applicability rules across all suppliers
             </p>
           </div>
           <Button
