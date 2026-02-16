@@ -178,7 +178,7 @@ export default function NmrRankGrid() {
           </p>
         </div>
       ) : (
-        <div className="rounded-lg border overflow-hidden">
+        <div className="rounded-lg border overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="border-collapse text-sm" style={{ tableLayout: 'auto' }}>
               <colgroup>
@@ -188,14 +188,14 @@ export default function NmrRankGrid() {
                 ))}
               </colgroup>
               <thead>
-                <tr className="bg-muted/50">
-                  <th className="text-left px-3 py-2 border-r font-medium whitespace-nowrap sticky left-0 bg-muted/50 z-[2]">
+                <tr className="bg-muted/60">
+                  <th className="text-left px-3 py-2 border-r text-xs font-semibold uppercase tracking-wider whitespace-nowrap sticky left-0 bg-muted/60 z-[2]">
                     Supplier
                   </th>
                   {filteredProjects.map(p => (
                     <th
                       key={p.id}
-                      className={`text-center px-3 py-2 border-r font-medium whitespace-nowrap ${hoveredCol === p.id ? 'bg-muted/30' : ''}`}
+                      className={`text-center px-3 py-2 border-r font-semibold text-xs whitespace-nowrap ${hoveredCol === p.id ? 'bg-muted/30' : ''}`}
                       onMouseEnter={() => setHoveredCol(p.id)}
                       onMouseLeave={() => setHoveredCol(null)}
                     >

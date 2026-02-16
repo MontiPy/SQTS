@@ -149,23 +149,23 @@ export default function SupplierMilestoneDateGrid({ projectId }: Props) {
       )}
 
       {/* Grid */}
-      <div className="border rounded-lg overflow-auto max-h-[70vh]">
+      <div className="border rounded-lg overflow-auto max-h-[70vh] shadow-sm">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-[5]">
-            <tr className="bg-muted/80 backdrop-blur-sm">
-              <th className="border-b border-r px-3 py-2 text-left font-medium sticky left-0 bg-muted z-[6] min-w-[120px]">
+            <tr className="bg-muted/80 backdrop-blur-sm text-xs">
+              <th className="border-b border-r px-3 py-2 text-left font-semibold text-xs uppercase tracking-wider sticky left-0 bg-muted z-[6] min-w-[120px]">
                 Category
               </th>
-              <th className="border-b border-r px-3 py-2 text-left font-medium sticky left-[120px] bg-muted z-[6] min-w-[160px]">
+              <th className="border-b border-r px-3 py-2 text-left font-semibold text-xs uppercase tracking-wider sticky left-[120px] bg-muted z-[6] min-w-[160px]">
                 Milestone
               </th>
-              <th className="border-b border-r px-2 py-2 text-center font-medium sticky left-[280px] bg-muted z-[6] w-[60px]">
+              <th className="border-b border-r px-2 py-2 text-center font-semibold text-xs uppercase tracking-wider sticky left-[280px] bg-muted z-[6] w-[60px]">
                 Fill
               </th>
               {data.suppliers.map((s, colIdx) => (
                 <th
                   key={s.supplierProjectId}
-                  className={`border-b border-r px-3 py-2 text-center font-medium min-w-[140px] ${
+                  className={`border-b border-r px-3 py-2 text-center font-semibold text-xs min-w-[140px] ${
                     hoveredCol === colIdx ? 'bg-accent/50' : ''
                   }`}
                 >
@@ -188,7 +188,7 @@ export default function SupplierMilestoneDateGrid({ projectId }: Props) {
                     {/* Category cell - rowspan */}
                     {isFirstInCategory && (
                       <td
-                        className="border-b border-r px-3 py-2 font-medium text-muted-foreground sticky left-0 bg-background align-top"
+                        className="border-b border-r px-3 py-2 font-semibold text-xs uppercase tracking-wider text-muted-foreground sticky left-0 bg-background align-top"
                         rowSpan={group.milestones.length}
                       >
                         {group.category}

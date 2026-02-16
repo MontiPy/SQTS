@@ -201,7 +201,7 @@ export default function MilestoneDateGrid() {
         </div>
       ) : (
         /* Grid */
-        <div className="rounded-lg border overflow-hidden">
+        <div className="rounded-lg border overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table ref={tableRef} className="border-collapse text-sm" style={{ tableLayout: 'auto' }}>
               {/* colgroup: auto-fit widths */}
@@ -213,17 +213,17 @@ export default function MilestoneDateGrid() {
                 ))}
               </colgroup>
               <thead>
-                <tr className="bg-muted/50">
-                  <th className="text-left px-3 py-2 border-r font-medium whitespace-nowrap sticky left-0 bg-muted/50 z-[2]">
+                <tr className="bg-muted/60">
+                  <th className="text-left px-3 py-2 border-r font-semibold text-xs uppercase tracking-wider whitespace-nowrap sticky left-0 bg-muted/60 z-[2]">
                     Category
                   </th>
-                  <th className="text-left px-3 py-2 border-r font-medium whitespace-nowrap sticky bg-muted/50 z-[2] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]" style={{ left: catWidth }}>
+                  <th className="text-left px-3 py-2 border-r font-semibold text-xs uppercase tracking-wider whitespace-nowrap sticky bg-muted/60 z-[2] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]" style={{ left: catWidth }}>
                     Milestone
                   </th>
                   {filteredProjects.map(p => (
                     <th
                       key={p.id}
-                      className={`text-center px-3 py-2 border-r font-medium whitespace-nowrap ${hoveredCol === p.id ? 'bg-muted/30' : ''}`}
+                      className={`text-center px-3 py-2 border-r font-semibold text-xs whitespace-nowrap ${hoveredCol === p.id ? 'bg-muted/30' : ''}`}
                       onMouseEnter={() => setHoveredCol(p.id)}
                       onMouseLeave={() => setHoveredCol(null)}
                     >
@@ -247,7 +247,7 @@ export default function MilestoneDateGrid() {
                       {/* Category cell — rowspan */}
                       {idx === 0 && (
                         <td
-                          className={`px-3 py-2 border-r font-medium text-muted-foreground align-top whitespace-nowrap sticky left-0 z-[1] ${hoveredRow === rowKey ? 'bg-muted/30' : 'bg-background'}`}
+                          className={`px-3 py-2 border-r font-semibold text-xs uppercase tracking-wider text-muted-foreground align-top whitespace-nowrap sticky left-0 z-[1] ${hoveredRow === rowKey ? 'bg-muted/30' : 'bg-background'}`}
                           rowSpan={categoryRows.length}
                         >
                           {category}

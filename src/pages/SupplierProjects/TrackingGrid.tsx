@@ -358,7 +358,13 @@ export default function TrackingGrid() {
       <TableRow
         key={inst.id}
         className={
-          overdueItem ? 'bg-amber-50' : isMilestone ? 'bg-muted/40 border-t-2' : undefined
+          isMilestone
+            ? `border-l-[3px] border-primary/40 ${overdueItem ? 'bg-amber-50' : 'bg-muted/30'}`
+            : overdueItem
+              ? 'bg-amber-50 border-l-2 border-muted-foreground/15'
+              : indent
+                ? 'border-l-2 border-muted-foreground/15'
+                : undefined
         }
       >
         <TableCell>
@@ -372,7 +378,7 @@ export default function TrackingGrid() {
         </TableCell>
 
         <TableCell>
-          <div className={`flex items-center gap-2 ${indent ? 'pl-8' : ''}`}>
+          <div className={`flex items-center gap-2 ${indent ? 'pl-10' : ''}`}>
             {isMilestone && (
               <button
                 onClick={() => toggleMilestone(inst.projectScheduleItemId)}
@@ -492,7 +498,7 @@ export default function TrackingGrid() {
       rows.push(
         <TableRow
           key={ms.id}
-          className={isOverdue(ms) ? 'bg-amber-50' : 'bg-muted/40 border-t-2'}
+          className={`border-l-[3px] border-primary/40 ${isOverdue(ms) ? 'bg-amber-50' : 'bg-muted/30'}`}
         >
           <TableCell>
             <button onClick={() => toggleMilestoneWithChildren(ms.id, childTasks.map((t) => t.id))} className="p-0.5">
@@ -734,10 +740,10 @@ export default function TrackingGrid() {
               allProjectInstances.every((i) => selectedInstances.has(i.id));
 
             return (
-              <div key={project.projectId} className="border rounded-lg overflow-hidden">
+              <div key={project.projectId} className="border rounded-lg overflow-hidden shadow-sm">
                 {/* Level 1: Project Header */}
                 <div
-                  className="flex items-center gap-3 p-3 bg-muted/50 cursor-pointer hover:bg-muted"
+                  className="flex items-center gap-3 p-3 bg-muted/60 border-l-4 border-primary cursor-pointer hover:bg-muted transition-colors"
                   onClick={() => toggleProject(project.projectId)}
                 >
                   <button
@@ -774,7 +780,7 @@ export default function TrackingGrid() {
                   )}
 
                   <div className="ml-auto flex items-center gap-2">
-                    <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
                       <div
                         className="h-full bg-green-500 rounded-full transition-all"
                         style={{
@@ -811,7 +817,7 @@ export default function TrackingGrid() {
                         <div key={activityKey}>
                           {/* Activity sub-header */}
                           <div
-                            className="flex items-center gap-3 px-4 py-2 pl-10 bg-muted/25 cursor-pointer hover:bg-muted/40 border-t"
+                            className="flex items-center gap-3 px-4 py-2 pl-10 bg-muted/30 border-l-4 border-primary/30 cursor-pointer hover:bg-muted/40 border-t transition-colors"
                             onClick={() => toggleActivity(activityKey)}
                           >
                             {isActivityExpanded ? (

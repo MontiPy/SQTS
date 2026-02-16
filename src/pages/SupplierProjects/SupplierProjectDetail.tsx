@@ -476,7 +476,7 @@ export default function SupplierProjectDetail() {
 
       {/* Progress Bar */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden">
+        <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
           <div
             className="h-full bg-green-500 rounded-full transition-all"
             style={{
@@ -554,10 +554,10 @@ export default function SupplierProjectDetail() {
             const stats = getActivityStats(activity.scheduleInstances);
 
             return (
-              <div key={activity.id} className="border rounded-lg overflow-hidden">
+              <div key={activity.id} className="border rounded-lg overflow-hidden shadow-sm">
                 {/* Activity Header */}
                 <div
-                  className="flex items-center gap-3 p-4 bg-muted/50 cursor-pointer hover:bg-muted"
+                  className="flex items-center gap-3 p-4 bg-muted/60 border-l-4 border-primary cursor-pointer hover:bg-muted transition-colors"
                   onClick={() => toggleActivity(activity.id)}
                 >
                   {isExpanded ? (
@@ -581,7 +581,7 @@ export default function SupplierProjectDetail() {
                   )}
 
                   <div className="ml-auto">
-                    <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="w-20 h-2 bg-muted rounded-full overflow-hidden">
                       <div
                         className="h-full bg-green-500 rounded-full transition-all"
                         style={{
@@ -598,7 +598,7 @@ export default function SupplierProjectDetail() {
                 {/* Schedule Items Table */}
                 {isExpanded && (
                   <div>
-                    <div className="px-4 py-2 border-t bg-muted/20">
+                    <div className="px-4 py-2 border-t bg-muted/25 border-l-4 border-primary/20">
                       <button
                         className="text-xs text-muted-foreground hover:text-foreground"
                         onClick={() => toggleAllInActivity(activity.scheduleInstances)}
@@ -638,7 +638,7 @@ export default function SupplierProjectDetail() {
                             rows.push(
                               <TableRow
                                 key={ms.id}
-                                className={msOverdue ? 'bg-amber-50' : 'bg-muted/40 border-t-2'}
+                                className={`border-l-[3px] border-primary/40 ${msOverdue ? 'bg-amber-50' : 'bg-muted/30'}`}
                               >
                                 <TableCell>
                                   <button
@@ -755,7 +755,7 @@ export default function SupplierProjectDetail() {
                               for (const task of childTasks) {
                                 const taskOverdue = isOverdue(task);
                                 rows.push(
-                                  <TableRow key={task.id} className={taskOverdue ? 'bg-amber-50' : undefined}>
+                                  <TableRow key={task.id} className={taskOverdue ? 'bg-amber-50 border-l-2 border-muted-foreground/15' : 'border-l-2 border-muted-foreground/15'}>
                                     <TableCell>
                                       <button onClick={() => toggleInstance(task.id)} className="p-0.5">
                                         {selectedInstances.has(task.id) ? (
@@ -766,7 +766,7 @@ export default function SupplierProjectDetail() {
                                       </button>
                                     </TableCell>
                                     <TableCell>
-                                      <div className="flex items-center gap-2 pl-8">
+                                      <div className="flex items-center gap-2 pl-10">
                                         <span className="font-medium">{task.itemName}</span>
                                         {taskOverdue && <Clock className="w-3.5 h-3.5 text-amber-600" />}
                                         {!!task.locked && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
