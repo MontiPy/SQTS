@@ -221,6 +221,23 @@ export default function TrackingGrid() {
     });
   }
 
+  function toggleMilestoneWithChildren(
+    milestoneId: number,
+    childTaskIds: number[]
+  ) {
+    setSelectedInstances((prev) => {
+      const next = new Set(prev);
+      const allIds = [milestoneId, ...childTaskIds];
+      const allSelected = allIds.every((id) => next.has(id));
+      if (allSelected) {
+        allIds.forEach((id) => next.delete(id));
+      } else {
+        allIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }
+
   function toggleAllProjectInstances(project: SupplierGridProject) {
     const ids: number[] = [];
     for (const activity of project.activities) {
@@ -238,16 +255,35 @@ export default function TrackingGrid() {
   }
 
   // --- Action handlers ---
-  async function handleStatusChange(instanceId: number, newStatus: ActivityStatus) {
+  async function handleStatusChange(
+    instanceId: number,
+    newStatus: ActivityStatus,
+    unlocked_childIds?: number[]
+  ) {
     try {
       const actualDate =
         newStatus === 'Complete' ? new Date().toISOString().split('T')[0] : null;
-      await updateStatus.mutateAsync({
-        instanceId,
-        status: newStatus,
-        completionDate: actualDate,
-      });
-      success('Status updated');
+
+      // Cascade terminal statuses from milestones to unlocked children
+      if (
+        unlocked_childIds &&
+        unlocked_childIds.length > 0 &&
+        (newStatus === 'Complete' || newStatus === 'Not Required')
+      ) {
+        await batchUpdateStatus.mutateAsync({
+          instanceIds: [instanceId, ...unlocked_childIds],
+          status: newStatus,
+          completionDate: actualDate,
+        });
+        success(`Milestone + ${unlocked_childIds.length} tasks updated`);
+      } else {
+        await updateStatus.mutateAsync({
+          instanceId,
+          status: newStatus,
+          completionDate: actualDate,
+        });
+        success('Status updated');
+      }
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to update status');
     }
@@ -459,7 +495,7 @@ export default function TrackingGrid() {
           className={isOverdue(ms) ? 'bg-amber-50' : 'bg-muted/40 border-t-2'}
         >
           <TableCell>
-            <button onClick={() => toggleInstance(ms.id)} className="p-0.5">
+            <button onClick={() => toggleMilestoneWithChildren(ms.id, childTasks.map((t) => t.id))} className="p-0.5">
               {selectedInstances.has(ms.id) ? (
                 <CheckSquare className="w-4 h-4 text-primary" />
               ) : (
@@ -491,7 +527,13 @@ export default function TrackingGrid() {
             <select
               className="h-8 rounded border border-input bg-background px-2 text-xs"
               value={ms.status}
-              onChange={(e) => handleStatusChange(ms.id, e.target.value as ActivityStatus)}
+              onChange={(e) => {
+                const newStatus = e.target.value as ActivityStatus;
+                const unlockedChildIds = childTasks
+                  .filter((t) => !t.locked)
+                  .map((t) => t.id);
+                handleStatusChange(ms.id, newStatus, unlockedChildIds);
+              }}
             >
               {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
